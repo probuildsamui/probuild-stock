@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      alert("❌ JavaScript Error:\n" + message + "\n\nไฟล์: " + source + "\nบรรทัดที่: " + lineno + "\nคอลัมน์: " + colno);
+      return false;
+    };
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบบริหารสต็อกวัสดุและเครื่องมือช่าง | Probuild Samui Development</title>
+  
+  <!-- Font Awesome สำหรับไอคอนสวยงามระดับพรีเมียม -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- สไตล์ชีทภายนอก -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- ไฟล์ฐานข้อมูลและสคริปต์ควบคุม -->
+  <script src="db.js?v=3"></script>
+  <script src="app.js?v=3"></script>
+</head>
+<body>
+
+  <!-- ==================== หน้าจอล็อกอิน (Login Screen) ==================== -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <img src="LOGO Probuild & Samui Paradise.jpg" alt="Probuild Logo" class="login-logo" onerror="this.style.display='none'; document.getElementById('login-logo-fallback').style.display='flex'">
+      <div id="login-logo-fallback" style="display:none; width:100px; height:100px; border-radius:50%; background:var(--accent-light); color:var(--accent); font-size:40px; align-items:center; justify-content:center; margin:0 auto 24px; border:2px solid var(--accent);"><i class="fas fa-hammer"></i></div>
+      
+      <div class="login-header">
+        <h2 class="login-title">ระบบบริหารจัดการสต็อก</h2>
+        <p class="login-subtitle">Probuild Samui Development & Samui Paradise</p>
+      </div>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="login-user-select"><i class="fas fa-user-circle"></i> ชื่อพนักงานผู้เข้าใช้งาน</label>
+          <select id="login-user-select" class="form-control" required>
+            <!-- โหลดรายชื่อผู้ใช้จาก db.js อัตโนมัติ -->
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="login-password"><i class="fas fa-lock"></i> รหัสผ่าน (Password)</label>
+          <input type="password" id="login-password" class="form-control" placeholder="ป้อนรหัสผ่าน 3 หลัก" required>
+        </div>
+        
+        <button type="submit" class="btn-login-submit"><i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ</button>
+        <div id="login-error-msg" class="login-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== โครงสร้างหน้าควบคุมหลัก (App Container) ==================== -->
+  <div class="app-container">
+    
+    <!-- แถบด้านข้าง (Sidebar) -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="LOGO Probuild & Samui Paradise.jpg" alt="Probuild Logo" class="brand-logo" onerror="this.style.display='none'; document.getElementById('brand-logo-fallback').style.display='flex'">
+        <div id="brand-logo-fallback" style="display:none; width:100%; height:60px; border-radius:8px; background:var(--accent-light); color:var(--accent); font-size:24px; align-items:center; justify-content:center; border:1px solid var(--accent); margin-bottom:8px;"><i class="fas fa-hammer"></i></div>
+        <div class="brand-text">
+          <span class="brand-title" style="font-size: 13px; font-weight: 700; color: var(--text-primary); line-height: 1.4; display: block; margin-top: 4px;">บริษัท พรอบิวด์ สมุย ดีเวลลอปเมนท์ จำกัด</span>
+          <span class="brand-subtitle" style="font-size: 10px; color: var(--accent); font-weight: 600; margin-top: 4px; display: block; letter-spacing: 0.5px; opacity: 0.9;">PROBUILD SAMUI DEVELOPMENT</span>
+        </div>
+      </div>
+      
+      <nav class="sidebar-menu">
+        <div class="menu-item active" data-tab="dashboard"><i class="fas fa-chart-line"></i>แผงควบคุม (Dashboard)</div>
+        <div class="menu-item" data-tab="materials"><i class="fas fa-boxes-stacked"></i>คลังวัสดุก่อสร้าง</div>
+        <div class="menu-item" data-tab="tools"><i class="fas fa-screwdriver-wrench"></i>คลังเครื่องมือช่าง</div>
+        <div class="menu-item" data-tab="logs"><i class="fas fa-history"></i>ประวัติการทำรายการ</div>
+        <div class="menu-item" data-tab="reports"><i class="fas fa-file-invoice-dollar"></i>รายงานสรุปรายโครงการ</div>
+        <div class="menu-item" id="nav-users" data-tab="users" style="display:none;"><i class="fas fa-users-cog"></i>การจัดการบัญชีพนักงาน</div>
+        <div class="menu-item" id="nav-projects" data-tab="projects" style="display:none;"><i class="fas fa-city"></i>การจัดการโครงการ</div>
+        <div class="menu-item" id="nav-warehouses" data-tab="warehouses" style="display:none;"><i class="fas fa-warehouse"></i>การจัดการคลังวัสดุ</div>
+        <div class="menu-item" data-tab="settings"><i class="fas fa-cog"></i>การตั้งค่า & Sync Sheet</div>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="user-avatar" id="user-initial">P</div>
+        <div class="user-info">
+          <span class="user-name" id="user-display-name">ผู้ใช้ระบบ</span>
+          <span class="user-role" id="user-display-role">บทบาท</span>
+        </div>
+        <button class="btn-logout" id="nav-logout" title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+    </aside>
+
+    <!-- เนื้อหาแอปพลิเคชันฝั่งขวา (Main Content) -->
+    <main class="main-content">
+      
+      <!-- บาร์ด้านบนหน้าจอ (Top Bar) -->
+      <header class="top-bar">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="menu-toggle" onclick="toggleMobileSidebar()"><i class="fas fa-bars"></i></button>
+          <h1 class="page-title" id="main-page-title">แดชบอร์ดสรุปผล</h1>
+        </div>
+        
+        <div class="connection-badge">
+          <span class="status-dot" id="sheet-status-dot"></span>
+          <span id="sheet-status-text">เช็คการเชื่อมต่อ...</span>
+        </div>
+      </header>
+      
+      <!-- พื้นที่แสดงผลย่อย (Content Body) -->
+      <section class="content-body">
+
+        <!-- ==================== VIEW: DASHBOARD ==================== -->
+        <div id="view-dashboard" class="view-panel active">
+          
+          <!-- แผงแสดงสถิติเด่น (Metrics Cards) -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon-box green"><i class="fas fa-money-bill-wave"></i></div>
+              <div class="metric-details">
+                <span class="metric-value" id="dash-total-value">0 ฿</span>
+                <span class="metric-label">มูลค่าวัสดุในคลังรวม</span>
+              </div>
+            </div>
+            
+            <div class="metric-card">
+              <div class="metric-icon-box teal"><i class="fas fa-screwdriver-wrench"></i></div>
+              <div class="metric-details">
+                <span class="metric-value" id="dash-active-tools">0ชิ้น</span>
+                <span class="metric-label">เครื่องมือช่างพร้อมใช้งาน</span>
+              </div>
+            </div>
+            
+            <div class="metric-card">
+              <div class="metric-icon-box red"><i class="fas fa-exclamation-triangle"></i></div>
+              <div class="metric-details">
+                <span class="metric-value" id="dash-low-stock">0 รายการ</span>
+                <span class="metric-label">วัสดุของขาด (ต่ำกว่าขั้นต่ำ)</span>
+              </div>
+            </div>
+            
+            <div class="metric-card">
+              <div class="metric-icon-box amber"><i class="fas fa-tools"></i></div>
+              <div class="metric-details">
+                <span class="metric-value" id="dash-in-repair">0 รายการ</span>
+                <span class="metric-label">เครื่องมือแจ้งส่งซ่อม</span>
+              </div>
+            </div>
+            
+            <div class="metric-card">
+              <div class="metric-icon-box blue"><i class="fas fa-shield-alt"></i></div>
+              <div class="metric-details">
+                <span class="metric-value" id="dash-warranty-exp">0ชิ้น</span>
+                <span class="metric-label">เครื่องมือหมด/ใกล้หมดประกัน</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- เนื้อหา Dashboard ย่อย -->
+          <div class="dashboard-layout">
+            <!-- ด้านซ้าย: การกระจายค่าใช้จ่ายและวัสดุใช้บ่อย -->
+            <div style="display:flex; flex-direction:column; gap:24px;">
+              <div class="card" style="margin-bottom:0;">
+                <div class="list-widget-header">
+                  <h3 class="list-widget-title"><i class="fas fa-chart-bar" style="color:var(--accent);"></i> ยอดเงินค่าวัสดุแยกตามวิลล่าโครงการสะสม</h3>
+                </div>
+                <div id="dash-project-costs" style="margin-top:16px;">
+                  <!-- เรนเดอร์ยอดเงินตามโครงการ -->
+                </div>
+              </div>
+              
+              <div class="card" style="margin-bottom:0;">
+                <div class="list-widget-header">
+                  <h3 class="list-widget-title"><i class="fas fa-fire" style="color:var(--success);"></i> วัสดุเครื่องมือที่เบิกใช้บ่อยที่สุด (สัปดาห์นี้)</h3>
+                </div>
+                <div class="list-items" id="dash-top-used-list" style="margin-top:12px;">
+                  <!-- เรนเดอร์รายการเบิกใช้สูงสุด -->
+                </div>
+              </div>
+            </div>
+            
+            <!-- ด้านขวา: ประกันและรายการซ่อมบำรุง -->
+            <div style="display:flex; flex-direction:column; gap:24px;">
+              <div class="card" style="margin-bottom:0;">
+                <div class="list-widget-header">
+                  <h3 class="list-widget-title"><i class="fas fa-box-open" style="color:var(--danger);"></i> สินค้าถึงระดับสั่งซื้อขั้นต่ำ</h3>
+                </div>
+                <div class="list-items" id="dash-low-stock-list" style="margin-top:12px;">
+                  <!-- รายการวัสดุของขาด -->
+                </div>
+              </div>
+
+              <div class="card" style="margin-bottom:0;">
+                <div class="list-widget-header">
+                  <h3 class="list-widget-title"><i class="fas fa-history" style="color:var(--info);"></i> อุปกรณ์ที่อยู่ระหว่างแจ้งซ่อม</h3>
+                </div>
+                <div class="list-items" id="dash-repair-list" style="margin-top:12px;">
+                  <!-- รายการส่งซ่อม -->
+                </div>
+              </div>
+              
+              <div class="card" style="margin-bottom:0;">
+                <div class="list-widget-header">
+                  <h3 class="list-widget-title"><i class="fas fa-shield-halved" style="color:var(--warning);"></i> อุปกรณ์ที่หมดประกัน/ใกล้หมดประกัน (30 วัน)</h3>
+                </div>
+                <div class="list-items" id="dash-warranty-list" style="margin-top:12px;">
+                  <!-- รายการประกัน -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: MATERIALS (วัสดุก่อสร้าง) ==================== -->
+        <div id="view-materials" class="view-panel">
+          <div class="card">
+            <div class="table-toolbar">
+              <div class="search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="mat-search" class="search-input" placeholder="พิมพ์ชื่อสินค้าหรือรหัสเพื่อค้นหาทันที...">
+              </div>
+              
+              <div class="toolbar-actions">
+                <select id="mat-cat-filter" class="select-filter">
+                  <option value="">-- ทุกหมวดหมู่ --</option>
+                  <option value="ปูนซีเมนต์">ปูนซีเมนต์</option>
+                  <option value="เหล็กเส้น">เหล็กเส้น</option>
+                  <option value="ท่อ PVC">ท่อ PVC</option>
+                  <option value="สายไฟ">สายไฟ</option>
+                  <option value="อุปกรณ์อื่นๆ">อุปกรณ์อื่นๆ</option>
+                </select>
+                
+                <button class="btn btn-secondary" onclick="openReceiveMaterialModal()"><i class="fas fa-plus-circle"></i> รับเข้าวัสดุ</button>
+                <button class="btn btn-primary" onclick="openWithdrawMaterialModal()"><i class="fas fa-minus-circle"></i> เบิกสินค้า</button>
+                <button class="btn btn-secondary" onclick="openAddMaterialModal()" style="background:rgba(13, 148, 136, 0.1); border:1px solid var(--accent); color:var(--accent);"><i class="fas fa-plus"></i> เพิ่มชื่อวัสดุใหม่</button>
+              </div>
+            </div>
+            
+            <div class="table-wrapper">
+              <table class="app-table">
+                <thead>
+                  <tr id="materials-table-header">
+                    <th>ชื่อวัสดุก่อสร้าง</th>
+                    <th style="text-align:center;">Stock A</th>
+                    <th style="text-align:center;">Stock B</th>
+                    <th style="text-align:center;">Stock C</th>
+                    <th>ยอดคงเหลือรวม</th>
+                    <th>ราคากลาง</th>
+                    <th>มูลค่ารวมในคลัง</th>
+                    <th>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="materials-table-body">
+                  <!-- โหลดข้อมูลวัสดุจาก JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: TOOLS (เครื่องมือช่าง) ==================== -->
+        <div id="view-tools" class="view-panel">
+          <div class="card">
+            <div class="table-toolbar">
+              <div class="search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="tool-search" class="search-input" placeholder="ค้นหาตามชื่อเครื่องมือ หรือ S/N...">
+              </div>
+              
+              <div class="toolbar-actions">
+                <select id="tool-cat-filter" class="select-filter">
+                  <option value="">-- ทุกหมวดหมู่ --</option>
+                  <option value="เครื่องมือไฟฟ้า">เครื่องมือไฟฟ้า</option>
+                  <option value="เครื่องมือวัด">เครื่องมือวัด</option>
+                  <option value="ตู้เชื่อม">ตู้เชื่อม</option>
+                  <option value="เครื่องมืออื่นๆ">เครื่องมืออื่นๆ</option>
+                </select>
+
+                <select id="tool-status-filter" class="select-filter">
+                  <option value="">-- ทุกสถานะ --</option>
+                  <option value="usable">พร้อมใช้งาน</option>
+                  <option value="damaged">ชำรุด/ส่งซ่อม</option>
+                  <option value="retired">ยุติการใช้งาน</option>
+                </select>
+                
+                <button class="btn btn-secondary" onclick="openToolReturnModal()"><i class="fas fa-sign-in-alt"></i> คืนเครื่องมือ</button>
+                <button class="btn btn-primary" onclick="openToolBorrowModal()"><i class="fas fa-sign-out-alt"></i> ยืมเครื่องมือ</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('tool-form').reset(); document.getElementById('tool-form-id').value=''; document.getElementById('tool-modal-title').textContent='เพิ่มเครื่องมือช่างใหม่'; openModal('tool-form-modal');" style="background:rgba(13, 148, 136, 0.1); border:1px solid var(--accent); color:var(--accent);"><i class="fas fa-plus"></i> เพิ่มเครื่องมือใหม่</button>
+              </div>
+            </div>
+            
+            <div id="tools-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:20px;">
+              <!-- โหลดการ์ดเครื่องมือจาก JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: HISTORY LOGS ==================== -->
+        <div id="view-logs" class="view-panel">
+          
+          <!-- ส่วนหัวสำหรับพิมพ์ประวัติการเบิกจ่าย -->
+          <div class="print-header">
+            <img src="LOGO Probuild & Samui Paradise.jpg" alt="Probuild Logo" class="print-logo">
+            <div class="print-title">
+              <h1 style="font-size: 18px; margin-bottom: 4px;">ประวัติการเบิกจ่ายและโยกย้ายเครื่องมือ</h1>
+              <p id="print-logs-meta" style="font-weight:bold; font-size:12px; margin-bottom:4px;"></p>
+              <p style="font-size:10px; color:#444;">บริษัท พรอบิวด์ สมุย ดีเวลลอปเมนท์ จำกัด</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-toolbar">
+              <div class="search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="log-search" class="search-input" placeholder="ค้นหาประวัติตามโครงการ, ชื่อของ หรือผู้เบิก...">
+              </div>
+              
+              <div class="toolbar-actions">
+                <select id="log-type-filter" class="select-filter">
+                  <option value="">-- ทุกประเภทประวัติ --</option>
+                  <option value="material">เฉพาะวัสดุก่อสร้าง</option>
+                  <option value="tool">เฉพาะเครื่องมือช่าง</option>
+                </select>
+                <button class="btn btn-secondary" onclick="printLogs()" style="background:rgba(37, 99, 235, 0.1); border:1px solid var(--info); color:var(--info);"><i class="fas fa-print"></i> พิมพ์ประวัติ (Print PDF)</button>
+              </div>
+            </div>
+            
+            <div class="table-wrapper">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th style="width:50px; text-align:center;">ชนิด</th>
+                    <th>วัน-เวลา</th>
+                    <th>รายการ</th>
+                    <th style="text-align:center;">จำนวน</th>
+                    <th>รายละเอียดธุรกรรม</th>
+                  </tr>
+                </thead>
+                <tbody id="logs-table-body">
+                  <!-- ประวัติ -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: REPORTS (รายงานและสั่งพิมพ์) ==================== -->
+        <div id="view-reports" class="view-panel">
+          <!-- แผงเลือกข้อมูล -->
+          <div class="card">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:16px; align-items:flex-end;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="report-project-select">วิลล่าโครงการที่ต้องการสรุป</label>
+                <select id="report-project-select" class="form-control" required>
+                  <!-- ดึงรายชื่อโครงการจากประวัติที่มีจริง -->
+                </select>
+              </div>
+              
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="report-month-select">เลือกรอบเดือน</label>
+                <select id="report-month-select" class="form-control">
+                  <option value="1">มกราคม</option>
+                  <option value="2">กุมภาพันธ์</option>
+                  <option value="3">มีนาคม</option>
+                  <option value="4">เมษายน</option>
+                  <option value="5">พฤษภาคม</option>
+                  <option value="6">มิถุนายน</option>
+                  <option value="7">กรกฎาคม</option>
+                  <option value="8">สิงหาคม</option>
+                  <option value="9">กันยายน</option>
+                  <option value="10">ตุลาคม</option>
+                  <option value="11">พฤศจิกายน</option>
+                  <option value="12">ธันวาคม</option>
+                </select>
+              </div>
+              
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="report-year-select">เลือกปี พ.ศ.</label>
+                <select id="report-year-select" class="form-control">
+                  <option value="2026">2569</option>
+                  <option value="2025">2568</option>
+                  <option value="2024">2567</option>
+                </select>
+              </div>
+              
+              <button class="btn btn-primary" onclick="generateMonthlyReport()"><i class="fas fa-file-invoice"></i> ดึงรายงาน</button>
+            </div>
+          </div>
+
+          <!-- กล่องสรุปผลแสดงรายงานเพื่อเตรียมพิมพ์ -->
+          <div id="report-output-container" class="card" style="display:none; position:relative;">
+            
+            <!-- ส่วนพิมพ์หัวกระดาษ (จะปรากฏเฉพาะบนกระดาษตอนพิมพ์ด้วย CSS) -->
+            <div class="print-header">
+              <img src="LOGO Probuild & Samui Paradise.jpg" alt="Probuild Logo" class="print-logo">
+              <div class="print-title">
+                <h1 id="print-report-title">รายงานสรุปโครงการ</h1>
+                <p id="print-report-meta" style="font-weight:bold;"></p>
+                <p style="font-size:10px; color:#444;">บริษัท พรอบิวด์ สมุย ดีเวลลอปเมนท์ จำกัด</p>
+              </div>
+            </div>
+
+            <!-- ส่วนหัวแสดงบนหน้าจอแอปพลิเคชัน -->
+            <div class="list-widget-header" style="border-bottom:1px solid var(--border-color); padding-bottom:14px; margin-bottom:20px;">
+              <div>
+                <h2 id="ui-report-title" style="font-size:18px;">รายงานโครงการ</h2>
+                <p id="ui-report-meta" style="font-size:12px; color:var(--text-secondary); margin-top:4px;"></p>
+              </div>
+              <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์รายงานสรุป (Print A4)</button>
+            </div>
+
+            <!-- ตารางสรุปวัสดุ (คิดเงินจริงตามราคาประวัติรับเข้าสินค้าของแต่ละล็อต) -->
+            <h3 style="font-size:15px; margin-bottom:12px; display:flex; align-items:center; gap:8px;"><i class="fas fa-boxes-stacked" style="color:var(--accent);"></i> รายละเอียดการเบิกใช้วัสดุก่อสร้างประจำโครงการ</h3>
+            <div class="table-wrapper" style="margin-bottom:24px;">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th style="width:60px; text-align:center;">ลำดับ</th>
+                    <th>รายการวัสดุก่อสร้าง</th>
+                    <th style="text-align:center;">จำนวนที่เบิกใช้</th>
+                    <th>ล็อตราคาเบิกต่อชิ้น</th>
+                    <th style="text-align:right;">รวมยอดเงิน</th>
+                  </tr>
+                </thead>
+                <tbody id="report-materials-tbody">
+                  <!-- โหลดประวัติเบิกด้วย JavaScript -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ตารางแสดงเครื่องมือช่างที่เข้ามาทำงานในโครงการในเดือนนี้ -->
+            <h3 style="font-size:15px; margin-bottom:12px; display:flex; align-items:center; gap:8px;"><i class="fas fa-screwdriver-wrench" style="color:var(--warning);"></i> รายการเครื่องมือช่างที่เบิกเข้ามาใช้งาน</h3>
+            <div class="table-wrapper">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th style="width:60px; text-align:center;">ลำดับ</th>
+                    <th>ชื่อเครื่องมือช่าง</th>
+                    <th style="text-align:center;">หมายเลขซีเรียล</th>
+                    <th>ผู้เบิกใช้งาน (ผู้ปล่อยเบิก)</th>
+                    <th style="text-align:right;">ราคาสินทรัพย์</th>
+                  </tr>
+                </thead>
+                <tbody id="report-tools-tbody">
+                  <!-- เครื่องมือยืมเข้างาน -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- สรุปผลยอดรวมเงินวัสดุทั้งหมด -->
+            <div style="margin-top:24px; text-align:right; border-top:1px solid var(--border-color); padding-top:20px;">
+              <span style="font-size:16px; color:var(--text-secondary);">มูลค่าการเบิกใช้วัสดุรวมทั้งสิ้น: </span>
+              <strong id="report-summary-value" style="font-size:24px; color:var(--accent); margin-left:10px;">0 บาท</strong>
+            </div>
+
+            <!-- ส่วนพื้นที่เซ็นรับรอง (จะปรากฏเฉพาะบนใบพิมพ์กระดาษ A4) -->
+            <div class="print-signatures">
+              <div class="signature-box">
+                <p>ลงชื่อ..............................................................</p>
+                <p style="margin-top:6px;">(............................................................)</p>
+                <p style="margin-top:4px;">โฟร์แมนควบคุมโครงการ / ผู้เบิก</p>
+              </div>
+              <div class="signature-box">
+                <p>ลงชื่อ..............................................................</p>
+                <p style="margin-top:6px;">(............................................................)</p>
+                <p style="margin-top:4px;">ผู้จัดการคลังสินค้า / ผู้ตรวจสอบ</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: USERS (การจัดการบัญชีพนักงาน) ==================== -->
+        <div id="view-users" class="view-panel">
+          <div class="card">
+            <div class="list-widget-header" style="margin-bottom:20px;">
+              <h3 class="list-widget-title"><i class="fas fa-users-cog"></i> รายชื่อพนักงานในระบบ</h3>
+              <button class="btn btn-primary" onclick="openAddUserModal()"><i class="fas fa-user-plus"></i> เพิ่มพนักงานใหม่</button>
+            </div>
+            
+            <div class="list-items" id="users-list">
+              <!-- โหลดพนักงาน -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: PROJECTS (การจัดการโครงการ) ==================== -->
+        <div id="view-projects" class="view-panel">
+          <div class="card">
+            <div class="list-widget-header" style="margin-bottom:20px;">
+              <h3 class="list-widget-title"><i class="fas fa-city"></i> รายชื่อวิลล่าและโครงการก่อสร้าง</h3>
+              <button class="btn btn-primary" onclick="openAddProjectModal()"><i class="fas fa-plus-circle"></i> เพิ่มโครงการใหม่</button>
+            </div>
+            
+            <div class="list-items" id="projects-list">
+              <!-- โหลดรายชื่อโครงการ -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: WAREHOUSES (การจัดการคลังวัสดุ) ==================== -->
+        <div id="view-warehouses" class="view-panel">
+          <div class="card">
+            <div class="list-widget-header" style="margin-bottom:20px;">
+              <h3 class="list-widget-title"><i class="fas fa-warehouse"></i> การจัดการคลังวัสดุ (สูงสุด 5 คลัง)</h3>
+              <button class="btn btn-primary" onclick="openAddWarehouseModal()"><i class="fas fa-plus-circle"></i> เพิ่มคลังสินค้าใหม่</button>
+            </div>
+            
+            <div class="list-items" id="warehouses-list">
+              <!-- โหลดรายชื่อคลังสินค้า -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW: SETTINGS ==================== -->
+        <div id="view-settings" class="view-panel">
+          <div class="card">
+            <h3 style="font-size:16px; margin-bottom:16px;"><i class="fas fa-cog"></i> การเชื่อมต่อฐานข้อมูล Google Sheets และการแจ้งเตือน</h3>
+            
+            <form id="settings-form">
+              <div class="form-group">
+                <label class="form-label" for="settings-sheet-url">Google Sheet Apps Script Web App URL</label>
+                <input type="text" id="settings-sheet-url" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+                <small style="color:var(--text-muted); font-size:11px; display:block; margin-top:4px;">ใส่ Web App URL ที่ได้จากการ Deploy ใน Apps Script เพื่อเปิดการซิงก์ข้อมูลสองทิศทางแบบเรียลไทม์</small>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="settings-telegram-token">Telegram Bot Token</label>
+                  <input type="text" id="settings-telegram-token" class="form-control" placeholder="123456789:ABCdefGhIJKlmNoPQRsT">
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label" for="settings-telegram-chatid">Telegram Chat ID / Group ID</label>
+                  <input type="text" id="settings-telegram-chatid" class="form-control" placeholder="-100123456789">
+                </div>
+              </div>
+              
+              <div style="display:flex; gap:12px; margin-top:10px;">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> บันทึกการตั้งค่า</button>
+                <button type="button" id="btn-sync-sheets" class="btn btn-secondary"><i class="fas fa-sync"></i> ทำการซิงก์กับ Google Sheets ตอนนี้</button>
+              </div>
+            </form>
+
+            <!-- กล่องแสดงข้อความผลการเชื่อมต่อ -->
+            <div id="sync-log-box" style="display:none; margin-top:20px; padding:16px; background:#0b0f19; border:1px solid var(--border-color); border-radius:10px; font-family:monospace; font-size:12px; max-height:200px; overflow-y:auto; color:var(--success);">
+              <!-- ซิงก์ประวัติล็อก -->
+            </div>
+          </div>
+
+          <!-- วิธีการติดตั้งเพื่ออธิบายผู้จัดการ -->
+          <div class="card">
+            <h3 style="font-size:15px; margin-bottom:12px;"><i class="fas fa-info-circle" style="color:var(--accent);"></i> วิธีการเชื่อมต่อแอปเข้ากับ Google Sheets (สำหรับผู้ดูแลระบบ)</h3>
+            <ol style="margin-left:20px; font-size:13px; line-height:1.8; color:var(--text-secondary);">
+              <li>สร้างไฟล์ Google Sheets ใหม่ขึ้นมา 1 ไฟล์</li>
+              <li>ไปที่เมนูการทำงานด้านบน: <strong>ส่วนขยาย (Extensions)</strong> &gt; <strong>Apps Script</strong></li>
+              <li>นำโค้ดในไฟล์ <a href="google-apps-script.js" target="_blank" style="color:var(--accent); text-decoration:none;">[google-apps-script.js]</a> ในโฟลเดอร์นี้ ไปคัดลอกวางทับแทนที่ของเดิมทั้งหมด</li>
+              <li>กดปุ่มบันทึกและทำการสร้าง Deployment ใหม่ (New Deployment) เป็นแบบ <strong>เว็บแอป (Web App)</strong></li>
+              <li><strong>สำคัญ:</strong> ในหัวข้อ 'ผู้เข้าถึง' ให้เลือกเป็น <strong>ทุกคน (Anyone)</strong> จากนั้นกด Deploy และอนุมัติสิทธิ์</li>
+              <li>คัดลอก <strong>"URL ของเว็บแอป" (Web App URL)</strong> ที่ได้จากป๊อปอัปหลังจากกด Deploy (ลิงก์จะขึ้นต้นด้วย <code>https://script.google.com/macros/s/...</code>) <span style="color:var(--danger); font-weight:bold;">*ห้ามนำลิงก์ในแถบเบราว์เซอร์หน้าแก้ไขโค้ด (Script Editor) มาใส่</span></li>
+            </ol>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- ==================== DIALOG MODALS (กล่องกรอกฟอร์มป๊อปอัป) ==================== -->
+
+  <!-- 1. ป๊อปอัปเบิกใช้วัสดุก่อสร้าง -->
+  <div id="withdraw-material-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">แบบฟอร์มเบิกจ่ายวัสดุก่อสร้างออกไปโครงการ</h3>
+        <button class="btn-close-modal" onclick="closeModal('withdraw-material-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="withdraw-mat-form">
+        <div class="modal-body">
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="withdraw-mat-name">พิมพ์ค้นหาวัสดุก่อสร้าง (Autocomplete)</label>
+            <input type="text" id="withdraw-mat-name" class="form-control" placeholder="พิมพ์ชื่อยี่ห้อ ขนาด หรือชนิดวัสดุ..." required autocomplete="off">
+            <div id="withdraw-mat-dropdown" class="autocomplete-dropdown"></div>
+            <div id="withdraw-mat-qty-label" style="font-size:11px; color:var(--accent); margin-top:6px;">ยอดคงคลัง: -</div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="withdraw-mat-project">ส่งออกไปยังโครงการ/วิลล่า</label>
+              <select id="withdraw-mat-project" class="form-control" required>
+                <option value="" disabled selected>-- เลือกวิลล่าปลายทาง --</option>
+                <option value="โครงการ วิลล่า A (แม่น้ำ)">โครงการ วิลล่า A (แม่น้ำ)</option>
+                <option value="โครงการ วิลล่า B (บ่อผุด)">โครงการ วิลล่า B (บ่อผุด)</option>
+                <option value="โครงการ วิลล่า C (ลิปะน้อย)">โครงการ วิลล่า C (ลิปะน้อย)</option>
+                <option value="สำนักงานหน้างาน">สำนักงานหน้างาน</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="withdraw-mat-location">เบิกจ่ายออกจากคลังย่อย</label>
+              <select id="withdraw-mat-location" class="form-control" required>
+                <option value="Stock A">Stock A</option>
+                <option value="Stock B">Stock B</option>
+                <option value="Stock C">Stock C</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="withdraw-mat-qty">จำนวนที่เบิกใช้</label>
+              <input type="number" id="withdraw-mat-qty" class="form-control" min="1" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="withdraw-mat-borrower">พนักงานโฟร์แมนผู้เบิก/รับของ</label>
+              <input type="text" id="withdraw-mat-borrower" class="form-control" placeholder="พิมพ์ชื่อผู้เบิก..." required>
+            </div>
+          </div>
+
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="withdraw-mat-auth">พนักงานคลังสินค้าผู้อนุมัติ/ผู้จ่ายของ (ลงชื่อ)</label>
+            <input type="text" id="withdraw-mat-auth" class="form-control" placeholder="พิมพ์ชื่อผู้ปล่อยเบิก..." required autocomplete="off">
+            <div id="withdraw-mat-auth-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('withdraw-material-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">ยืนยันการเบิกจ่าย</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. ป๊อปอัปรับวัสดุก่อสร้างเข้าคลัง -->
+  <div id="receive-material-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">แบบฟอร์มรับเข้าวัสดุสู่คลังสินค้ากลาง</h3>
+        <button class="btn-close-modal" onclick="closeModal('receive-material-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="receive-mat-form">
+        <div class="modal-body">
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="receive-mat-name">พิมพ์ชื่อวัสดุที่ต้องการรับเข้า (Autocomplete)</label>
+            <input type="text" id="receive-mat-name" class="form-control" placeholder="เลือกรายการวัสดุก่อสร้าง..." required autocomplete="off">
+            <div id="receive-mat-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="receive-mat-location">เลือกจุดสต็อกจัดเก็บ</label>
+              <select id="receive-mat-location" class="form-control" required>
+                <option value="Stock A">Stock A</option>
+                <option value="Stock B">Stock B</option>
+                <option value="Stock C">Stock C</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="receive-mat-qty">จำนวนรับเข้าคลัง</label>
+              <input type="number" id="receive-mat-qty" class="form-control" min="1" required>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="receive-mat-price">ราคาทุนต่อชิ้นในการซื้อรอบนี้ (บาท/ชิ้น)</label>
+              <input type="number" id="receive-mat-price" class="form-control" placeholder="ปล่อยว่างหากใช้ราคากลางเดิม">
+            </div>
+            
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="receive-mat-borrower">ร้านค้าจัดส่งสินค้า / พนักงานผู้ซื้อ</label>
+              <input type="text" id="receive-mat-borrower" class="form-control" placeholder="เช่น ร้านไทยวัสดุ หรือชื่อผู้ซื้อ..." required autocomplete="off">
+              <div id="receive-mat-borrower-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="receive-mat-auth">พนักงานตรวจสอบ/ผู้รับของ (ลงชื่อ)</label>
+            <input type="text" id="receive-mat-auth" class="form-control" placeholder="พนักงานผู้ตรวจสต็อก..." required autocomplete="off">
+            <div id="receive-mat-auth-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('receive-material-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกรับเข้าคลัง</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. ป๊อปอัปเพิ่มวัสดุใหม่เข้าระบบ -->
+  <div id="material-add-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">เพิ่มชื่อวัสดุก่อสร้างรายการใหม่</h3>
+        <button class="btn-close-modal" onclick="closeModal('material-add-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="add-mat-form">
+        <div class="modal-body">
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="add-mat-name">ชื่อของวัสดุ (ระบุรุ่น/ยี่ห้อ/ขนาด ให้ชัดเจน)</label>
+            <input type="text" id="add-mat-name" class="form-control" placeholder="เช่น ท่อ PVC ตราช้าง 3 นิ้ว ชั้น 8.5" required autocomplete="off">
+            <div id="add-mat-name-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="add-mat-category">หมวดหมู่ของวัสดุ</label>
+              <select id="add-mat-category" class="form-control" required>
+                <option value="ปูนซีเมนต์">ปูนซีเมนต์</option>
+                <option value="เหล็กเส้น">เหล็กเส้น</option>
+                <option value="ท่อ PVC">ท่อ PVC</option>
+                <option value="สายไฟ">สายไฟ</option>
+                <option value="อุปกรณ์อื่นๆ">อุปกรณ์อื่นๆ</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="add-mat-unit">หน่วยนับ</label>
+              <input type="text" id="add-mat-unit" class="form-control" placeholder="เช่น ถุง, เส้น, ท่อน, ม้วน" required>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="add-mat-price">ราคากลางต่อหน่วย (บาท)</label>
+              <input type="number" id="add-mat-price" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="add-mat-min">ระดับการแจ้งสั่งซื้อขั้นต่ำ (Min Stock)</label>
+              <input type="number" id="add-mat-min" class="form-control" required>
+            </div>
+          </div>
+
+          <div style="margin-top:10px; padding:12px; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:10px;">
+            <span style="font-size:12px; display:block; margin-bottom:8px; font-weight:600; color:var(--accent);">ป้อนจำนวนเริ่มต้นแยกตามคลังย่อย (ถ้ามี)</span>
+            <div id="add-mat-stocks-container" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:11px;">Stock A</label>
+                <input type="number" id="add-mat-stocka" class="form-control" value="0">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:11px;">Stock B</label>
+                <input type="number" id="add-mat-stockb" class="form-control" value="0">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:11px;">Stock C</label>
+                <input type="number" id="add-mat-stockc" class="form-control" value="0">
+              </div>
+            </div>
+          </div>
+          
+          <!-- แนบรูปภาพวัสดุ (แนบรูปภาพได้มากกว่า 1 รูป) -->
+          <div class="form-group" style="margin-top:14px;">
+            <label class="form-label">รูปถ่ายวัสดุก่อสร้าง (รองรับหลายไฟล์)</label>
+            <div class="images-container" id="mat-images-preview">
+              <!-- โหลดภาพอัปเดตพรีวิว -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('material-add-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">เพิ่มเข้าคลังสินค้า</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. ป๊อปอัปแก้ไขราคากลางสินค้า -->
+  <div id="material-edit-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">ปรับปรุงการตั้งค่าข้อมูลวัสดุ</h3>
+        <button class="btn-close-modal" onclick="closeModal('material-edit-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="mat-edit-form">
+        <div class="modal-body">
+          <input type="hidden" id="mat-form-id">
+          <div class="form-group">
+            <span class="form-label">ชื่อวัสดุ</span>
+            <strong id="mat-form-name" style="font-size:16px;">-</strong>
+          </div>
+          
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="mat-form-price">ราคากลางต่อชิ้น (บาท)</label>
+              <input type="number" id="mat-form-price" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="mat-form-min">ขั้นต่ำสต็อกสำหรับเตือน (Min Stock)</label>
+              <input type="number" id="mat-form-min" class="form-control" required>
+            </div>
+          </div>
+          
+          <!-- แนบรูปภาพวัสดุตอนแก้ไข -->
+          <div class="form-group" style="margin-top:14px;">
+            <label class="form-label">รูปถ่ายวัสดุก่อสร้าง (รองรับหลายไฟล์)</label>
+            <div class="images-container" id="mat-edit-images-preview">
+              <!-- โหลดภาพอัปเดตพรีวิว -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('material-edit-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. ป๊อปอัปเพิ่ม/แก้ไขเครื่องมือช่างและถ่ายรูปแนบ (พร้อมจำลองระบบสแกน OCR) -->
+  <div id="tool-form-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="tool-modal-title">เพิ่มเครื่องมือช่างใหม่</h3>
+        <button class="btn-close-modal" onclick="closeModal('tool-form-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="tool-form">
+        <div class="modal-body">
+          <input type="hidden" id="tool-form-id">
+          
+          <!-- กล่องตัวควบคุมกล้องถ่ายภาพจำลองเพื่อทำ OCR -->
+          <div style="margin-bottom:14px; text-align:center;">
+            <button type="button" class="btn btn-secondary" onclick="triggerMockOCRScan()" style="width:100%; justify-content:center; background:rgba(13,148,136,0.1); border:1px dashed var(--accent); color:var(--accent);">
+              <i class="fas fa-barcode"></i> ถ่ายรูปซีเรียลนัมเบอร์เพื่อสแกนอัตโนมัติ (AI Scan)
+            </button>
+          </div>
+
+          <!-- ตัวแสดงผลการสแกนด้วยสายเลเซอร์จำลอง -->
+          <div id="ocr-scan-overlay" class="scanner-overlay">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%2364748B'><rect x='20' y='30' width='60' height='40' rx='5'/><circle cx='50' cy='50' r='10'/></svg>" class="scanner-img" alt="Camera View">
+            <div class="scan-line"></div>
+            <div id="ocr-scan-text" class="scan-text">กำลังค้นหาข้อความ...</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tool-name">ชื่อเครื่องมือและรุ่น (เช่น สว่าน Makita 24 มม.)</label>
+            <input type="text" id="tool-name" class="form-control" required placeholder="พิมพ์หรือสแกนจากบาร์โค้ด...">
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="tool-category">หมวดหมู่เครื่องมือ</label>
+              <select id="tool-category" class="form-control" required>
+                <option value="เครื่องมือไฟฟ้า">เครื่องมือไฟฟ้า</option>
+                <option value="เครื่องมือวัด">เครื่องมือวัด</option>
+                <option value="ตู้เชื่อม">ตู้เชื่อม</option>
+                <option value="เครื่องมืออื่นๆ">เครื่องมืออื่นๆ</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="tool-serial">หมายเลขซีเรียล (Serial Number)</label>
+              <input type="text" id="tool-serial" class="form-control" required placeholder="S/N ของเครื่องช่าง...">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="tool-shop">ร้านค้าที่จัดซื้อมา</label>
+              <input type="text" id="tool-shop" class="form-control" required placeholder="เช่น ไทวัสดุ, โฮมโปร">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="tool-pdate">วันที่ซื้อของ</label>
+              <input type="date" id="tool-pdate" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="tool-price">ราคาซื้อสุทธิ (บาท)</label>
+              <input type="number" id="tool-price" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="tool-warranty">วันที่สิ้นสุดการรับประกัน (Warranty Expiry)</label>
+              <input type="date" id="tool-warranty" class="form-control">
+            </div>
+          </div>
+
+          <!-- แนบรูปภาพตัวเครื่อง/ใบเสร็จ/ใบรับประกัน (แนบรูปภาพได้มากกว่า 1 รูป) -->
+          <div class="form-group">
+            <label class="form-label">รูปถ่ายเครื่องมือ และใบเสร็จ/ใบรับประกันแนบ (รองรับหลายไฟล์)</label>
+            <div class="images-container" id="tool-images-preview">
+              <!-- โหลดภาพอัปเดตพรีวิว -->
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('tool-form-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกเครื่องมือช่าง</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. ป๊อปอัปดูรูปถ่ายและใบเสร็จเครื่องมือช่างอย่างละเอียด -->
+  <div id="tool-detail-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">รายละเอียดจัดซื้อและภาพถ่ายเครื่องมือ</h3>
+        <button class="btn-close-modal" onclick="closeModal('tool-detail-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="tool-detail-grid">
+          <!-- ฝั่งแสดงรูปภาพแกลลอรี -->
+          <div class="detail-gallery">
+            <div class="detail-main-img">
+              <img id="detail-main-img-el" src="" alt="Main Image">
+            </div>
+            <div class="detail-thumbnails" id="detail-thumbnails-container">
+              <!-- รูปเล็ก -->
+            </div>
+          </div>
+          
+          <!-- ฝั่งแสดงรายละเอียดข้อมูลทั่วไป -->
+          <div class="detail-info-list">
+            <div class="detail-info-item">
+              <span class="detail-info-label">เครื่องมือ:</span>
+              <strong class="detail-info-value" id="detail-tool-name">-</strong>
+            </div>
+            <div class="detail-info-item">
+              <span class="detail-info-label">Serial Number:</span>
+              <span class="detail-info-value" id="detail-tool-sn" style="font-family:monospace; color:var(--accent);">-</span>
+            </div>
+            <div class="detail-info-item">
+              <span class="detail-info-label">ซื้อมาจากร้าน:</span>
+              <span class="detail-info-value" id="detail-tool-shop">-</span>
+            </div>
+            <div class="detail-info-item">
+              <span class="detail-info-label">วันที่จัดซื้อ:</span>
+              <span class="detail-info-value" id="detail-tool-pdate">-</span>
+            </div>
+            <div class="detail-info-item">
+              <span class="detail-info-label">ราคาสินค้า:</span>
+              <strong class="detail-info-value" id="detail-tool-price" style="color:var(--success);">-</strong>
+            </div>
+            <div class="detail-info-item">
+              <span class="detail-info-label">วันที่ประกันสิ้นสุด:</span>
+              <span class="detail-info-value" id="detail-tool-warranty">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('tool-detail-modal')">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. ป๊อปอัปทำธุรกรรมยืมเครื่องมือไปโครงการ -->
+  <div id="borrow-tool-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">เบิกยืมเครื่องมือช่างออกไปวิลล่าโครงการ</h3>
+        <button class="btn-close-modal" onclick="closeModal('borrow-tool-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="borrow-tool-form">
+        <div class="modal-body">
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="borrow-tool-name">พิมพ์ชื่อค้นหาเครื่องมือช่าง (พร้อมใช้งานในคลัง)</label>
+            <input type="text" id="borrow-tool-name" class="form-control" placeholder="ค้นหาตัวสว่าน เครื่องเจียร หรือตู้เชื่อม..." required autocomplete="off">
+            <div id="borrow-tool-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="borrow-tool-project">ส่งมอบไปยังหน้างานวิลล่าโครงการ</label>
+            <select id="borrow-tool-project" class="form-control" required>
+              <option value="" disabled selected>-- เลือกวิลล่าเป้าหมาย --</option>
+              <option value="โครงการ วิลล่า A (แม่น้ำ)">โครงการ วิลล่า A (แม่น้ำ)</option>
+              <option value="โครงการ วิลล่า B (บ่อผุด)">โครงการ วิลล่า B (บ่อผุด)</option>
+              <option value="โครงการ วิลล่า C (ลิปะน้อย)">โครงการ วิลล่า C (ลิปะน้อย)</option>
+              <option value="สำนักงานหน้างาน">สำนักงานหน้างาน</option>
+            </select>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="borrow-tool-borrower">โฟร์แมน/คนนำเครื่องช่างไปใช้ (ผู้เบิก)</label>
+              <input type="text" id="borrow-tool-borrower" class="form-control" placeholder="พิมพ์ชื่อผู้รับเครื่องมือ..." required autocomplete="off">
+              <div id="borrow-tool-borrower-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="borrow-tool-auth">ผู้ดูแลคลังที่ตรวจปล่อยของ (ผู้อนุมัติ)</label>
+              <input type="text" id="borrow-tool-auth" class="form-control" placeholder="ลงชื่อผู้ดูแล..." required autocomplete="off">
+              <div id="borrow-tool-auth-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="borrow-tool-notes">บันทึกเพิ่มเติม</label>
+            <input type="text" id="borrow-tool-notes" class="form-control" placeholder="เช่น เอาไปเจียรเสาเหล็กปีกสระว่ายน้ำ">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('borrow-tool-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">ยืนยันการเบิกยืม</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 8. ป๊อปอัปคืนเครื่องมือช่างกลับคลัง -->
+  <div id="return-tool-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">แบบฟอร์มส่งคืนเครื่องมือช่างกลับคลังกลาง</h3>
+        <button class="btn-close-modal" onclick="closeModal('return-tool-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="return-tool-form">
+        <div class="modal-body">
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="return-tool-name">พิมพ์ค้นหาเครื่องมือที่กำลังถูกยืมใช้อยู่</label>
+            <input type="text" id="return-tool-name" class="form-control" placeholder="กรอกชื่อเพื่อดึงรายการ..." required autocomplete="off">
+            <div id="return-tool-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="return-tool-condition">สภาพและสถานะเครื่องมือตอนส่งคืน</label>
+              <select id="return-tool-condition" class="form-control" required>
+                <option value="usable">✅ ปกติดีพร้อมใช้งาน</option>
+                <option value="damaged">❌ ชำรุดเสียหาย (ส่งเข้าแผนกซ่อม)</option>
+              </select>
+            </div>
+            
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="return-tool-borrower">โฟร์แมนผู้ส่งคืนเครื่องมือ</label>
+              <input type="text" id="return-tool-borrower" class="form-control" placeholder="ชื่อผู้คืนของ..." required autocomplete="off">
+              <div id="return-tool-borrower-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="return-tool-location">คลังย่อยที่รับคืนจัดเก็บ</label>
+            <select id="return-tool-location" class="form-control" required>
+              <!-- โหลดคลังสินค้าอัตโนมัติ -->
+            </select>
+          </div>
+
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="return-tool-auth">เจ้าหน้าที่สต็อกผู้รับมอบและตรวจสอบ (ลงชื่อ)</label>
+            <input type="text" id="return-tool-auth" class="form-control" placeholder="ผู้ตรวจคืนของ..." required autocomplete="off">
+            <div id="return-tool-auth-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="return-tool-notes">อาการหรือรายละเอียดชำรุดเสียหาย (ถ้ามี)</label>
+            <input type="text" id="return-tool-notes" class="form-control" placeholder="ระบุอาการ เช่น สายไฟขาด หรือใบเจียรแตก...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('return-tool-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกรับคืนของ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 9. ป๊อปอัปโยกย้ายเครื่องมือระหว่างโครงการ -->
+  <div id="transfer-tool-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">โยกย้ายเครื่องมือไปยังโครงการอื่น</h3>
+        <button class="btn-close-modal" onclick="closeModal('transfer-tool-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="transfer-tool-form">
+        <div class="modal-body">
+          <input type="hidden" id="trans-tool-id">
+          <div class="form-group">
+            <span class="form-label">ชื่อเครื่องมือช่างที่ทำการโยกย้าย</span>
+            <strong id="trans-tool-name" style="font-size:16px;">-</strong>
+          </div>
+          
+          <div class="form-grid-2">
+            <div class="form-group">
+              <span class="form-label">โครงการต้นทางเดิม</span>
+              <strong id="trans-tool-from" style="color:var(--warning); font-size:14px;">-</strong>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="trans-tool-to">โยกย้ายไปโครงการปลายทาง</label>
+              <select id="trans-tool-to" class="form-control" required>
+                <option value="" disabled selected>-- เลือกวิลล่าปลายทาง --</option>
+                <option value="โครงการ วิลล่า A (แม่น้ำ)">โครงการ วิลล่า A (แม่น้ำ)</option>
+                <option value="โครงการ วิลล่า B (บ่อผุด)">โครงการ วิลล่า B (บ่อผุด)</option>
+                <option value="โครงการ วิลล่า C (ลิปะน้อย)">โครงการ วิลล่า C (ลิปะน้อย)</option>
+                <option value="คลังสินค้ากลาง">คลังสินค้ากลาง (ย้ายกลับคลัง)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="trans-tool-borrower">โฟร์แมนผู้ขนย้ายอุปกรณ์</label>
+              <input type="text" id="trans-tool-borrower" class="form-control" placeholder="ผู้ย้ายของ..." required autocomplete="off">
+              <div id="trans-tool-borrower-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="trans-tool-auth">ผู้อนุมัติการโยกย้ายครั้งนี้ (ลงชื่อ)</label>
+              <input type="text" id="trans-tool-auth" class="form-control" placeholder="หัวหน้าผู้อนุมัติ..." required autocomplete="off">
+              <div id="trans-tool-auth-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="trans-tool-notes">เหตุผลในการโยกย้ายเครื่องมือ</label>
+            <input type="text" id="trans-tool-notes" class="form-control" placeholder="เช่น คอนโดวิลล่า A ทำส่วนคอนกรีตเสร็จก่อน เลยย้ายไปวิลล่า B..." required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('transfer-tool-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">ยืนยันโยกย้าย</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 10. แผงควบคุมประวัติการส่งซ่อมอุปกรณ์ช่าง (พร้อมปุ่มเกษียณชำรุดเสียหายถาวร) -->
+  <div id="repair-tool-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">อัปเดตประวัติและสถานะซ่อมเครื่องมือช่าง</h3>
+        <button class="btn-close-modal" onclick="closeModal('repair-tool-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="repair-tool-form">
+        <div class="modal-body">
+          <input type="hidden" id="repair-tool-id">
+          
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:12px; margin-bottom:16px;">
+            <div>
+              <strong id="repair-tool-name" style="font-size:16px; display:block;">-</strong>
+              <span style="font-size:12px; color:var(--text-secondary);">ซีเรียล: <code id="repair-tool-sn">-</code></span>
+            </div>
+            
+            <!-- ปุ่มแจ้งจำหน่าย/ยุติใช้งานกรณีพังถาวรหรือหาย -->
+            <button type="button" class="btn btn-danger" onclick="triggerRetireTool()" style="padding: 6px 12px; font-size:12px;"><i class="fas fa-trash-alt"></i> ยุติการใช้งานเครื่องมือนี้</button>
+          </div>
+
+          <!-- แผงแสดง Timeline ของการส่งซ่อม -->
+          <h4 style="font-size:13px; font-weight:600; margin-bottom:10px;">ไทม์ไลน์การส่งซ่อมปัจจุบัน (Repair Timeline)</h4>
+          <div id="repair-timeline-container" style="margin-bottom:20px;">
+            <!-- โหลดลำดับ Timeline จาก Javascript -->
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="repair-tool-status">เปลี่ยนสถานะความคืบหน้าการซ่อม</label>
+              <select id="repair-tool-status" class="form-control" required>
+                <option value="requested">แจ้งส่งซ่อม (Requested)</option>
+                <option value="in_progress">กำลังประเมิน/ซ่อม (In Progress)</option>
+                <option value="sent_to_shop">ส่งร้านภายนอกแล้ว (Sent to Shop)</option>
+                <option value="repaired">ซ่อมเสร็จสิ้น (Repaired/Ready to Use)</option>
+              </select>
+            </div>
+            
+            <div class="form-group autocomplete-container">
+              <label class="form-label" for="repair-tool-auth">ผู้บันทึกความคืบหน้าการซ่อม (ลงชื่อ)</label>
+              <input type="text" id="repair-tool-auth" class="form-control" placeholder="ชื่อผู้รายงาน..." required autocomplete="off">
+              <div id="repair-tool-auth-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="repair-tool-notes">อาการรายละเอียดและการแก้ปัญหา / ค่าซ่อมประเมิน</label>
+            <input type="text" id="repair-tool-notes" class="form-control" placeholder="เช่น ส่งซ่อมร้านสมุยบัวทอง อะไหล่คาปาซิเตอร์เสีย 450 บาท" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('repair-tool-modal')">ปิดหน้าต่าง</button>
+          <button type="submit" class="btn btn-primary">อัปเดตสถานะการซ่อม</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 11. หน้าจอป๊อปอัปเพิ่ม/แก้ไขบัญชีผู้ใช้งาน (สำหรับผู้จัดการเท่านั้น) -->
+  <div id="user-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="user-modal-title">เพิ่มพนักงานคนใหม่</h3>
+        <button class="btn-close-modal" onclick="closeModal('user-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="user-form-el">
+        <div class="modal-body">
+          <input type="hidden" id="user-form-id">
+          
+          <div class="form-group">
+            <label class="form-label" for="user-name">ชื่อจริง - นามสกุล พนักงาน</label>
+            <input type="text" id="user-name" class="form-control" placeholder="เช่น นายประดิษฐ์ มีสุข" required>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="user-username">ชื่อสำหรับเข้าสู่ระบบ (Username)</label>
+              <input type="text" id="user-username" class="form-control" placeholder="ภาษาอังกฤษ ตัวเลข..." required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="user-password">รหัสผ่าน 3 หลัก (PIN Code)</label>
+              <input type="password" id="user-password" class="form-control" placeholder="ตัวเลขเพื่อล็อกอินด่วน..." required maxlength="6">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label" for="user-role">ตำแหน่ง / บทบาทหน้าที่</label>
+              <select id="user-role" class="form-control" required>
+                <option value="foreman">โฟร์แมนโครงการหน้างาน (Foreman)</option>
+                <option value="stock_keeper">พนักงานคุมสต็อกของ (Stock Keeper)</option>
+                <option value="manager">ผู้จัดการหรือเจ้าของ (Manager)</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="user-status">สถานะพนักงานในปัจจุบัน</label>
+              <select id="user-status" class="form-control" required>
+                <option value="active">กำลังปฏิบัติหน้าที่ (Active)</option>
+                <option value="inactive">ออกจากการทำงานแล้ว (Inactive)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('user-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกบัญชีพนักงาน</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 12. ป๊อปอัปดูรูปถ่ายวัสดุก่อสร้างอย่างละเอียด -->
+  <div id="material-detail-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">ภาพถ่ายของวัสดุก่อสร้าง</h3>
+        <button class="btn-close-modal" onclick="closeModal('material-detail-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="tool-detail-grid">
+          <div class="detail-gallery" style="grid-column: 1 / -1;">
+            <div class="detail-main-img" style="height: 300px;">
+              <img id="detail-mat-main-img-el" src="" alt="Material Image">
+            </div>
+            <div class="detail-thumbnails" id="detail-mat-thumbnails-container">
+              <!-- รูปเล็ก -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('material-detail-modal')">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. หน้าจอป๊อปอัปเพิ่ม/แก้ไขโครงการ (สำหรับผู้จัดการเท่านั้น) -->
+  <div id="project-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="project-modal-title">เพิ่มโครงการใหม่</h3>
+        <button class="btn-close-modal" onclick="closeModal('project-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="project-form-el">
+        <div class="modal-body">
+          <input type="hidden" id="project-form-id">
+          
+          <div class="form-group">
+            <label class="form-label" for="project-name">ชื่อโครงการ/วิลล่า (เช่น โครงการ วิลล่า D (เชิงมน))</label>
+            <input type="text" id="project-name" class="form-control" placeholder="พิมพ์ชื่อโครงการ..." required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="project-desc">รายละเอียดของโครงการ</label>
+            <textarea id="project-desc" class="form-control" rows="3" placeholder="ระบุรายละเอียด เช่น บ้านสองชั้น พื้นที่ใช้สอย, กำหนดเสร็จ..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('project-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกข้อมูลโครงการ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 14. หน้าจอป๊อปอัปเพิ่ม/แก้ไขคลังสินค้า (สำหรับผู้จัดการเท่านั้น) -->
+  <div id="warehouse-modal" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="warehouse-modal-title">เพิ่มคลังสินค้าใหม่</h3>
+        <button class="btn-close-modal" onclick="closeModal('warehouse-modal')"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="warehouse-form-el">
+        <div class="modal-body">
+          <input type="hidden" id="warehouse-form-id">
+          
+          <div class="form-group">
+            <label class="form-label" for="warehouse-name">ชื่อคลังจัดเก็บสินค้า (เช่น สโตร์ด่านเก่า หรือ Stock A)</label>
+            <input type="text" id="warehouse-name" class="form-control" placeholder="พิมพ์ชื่อคลังจัดเก็บ..." required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('warehouse-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกข้อมูลคลังสินค้า</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== FLOATING QUICK MENU (เมนูลอยแบบยืดขยายบนมือถือ) ==================== -->
+  <div class="fab-container" id="fab-container-el">
+    <div class="fab-menu" id="fab-menu-container">
+      <button class="fab-item" onclick="quickAction('withdraw')" title="เบิกจ่ายวัสดุ" style="color:var(--danger);"><i class="fas fa-minus-circle"></i></button>
+      <button class="fab-item" onclick="quickAction('receive')" title="รับเข้าวัสดุ" style="color:var(--success);"><i class="fas fa-plus-circle"></i></button>
+      <button class="fab-item" onclick="quickAction('borrow')" title="เบิกเครื่องมือ" style="color:var(--warning);"><i class="fas fa-sign-out-alt"></i></button>
+      <button class="fab-item" onclick="quickAction('return')" title="คืนเครื่องมือ" style="color:var(--info);"><i class="fas fa-sign-in-alt"></i></button>
+    </div>
+    <button class="fab-main" id="fab-main-btn"><i class="fas fa-plus"></i></button>
+  </div>
+
+</body>
+</html>
