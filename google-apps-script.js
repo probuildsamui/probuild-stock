@@ -74,7 +74,7 @@ function doPost(e) {
 // ตารางและหัวข้อคอลัมน์เริ่มต้น
 var TABLES = {
   Users: ["id", "username", "password", "name", "role", "status"],
-  Materials: ["id", "category", "name", "stock_a_qty", "stock_b_qty", "stock_c_qty", "stock_d_qty", "stock_e_qty", "unit", "price_per_unit", "min_stock", "images", "last_updated"],
+  Materials: ["id", "category", "name", "stock_a_qty", "stock_b_qty", "stock_c_qty", "stock_d_qty", "stock_e_qty", "stock_f_qty", "stock_g_qty", "stock_h_qty", "stock_i_qty", "stock_j_qty", "unit", "price_per_unit", "min_stock", "images", "last_updated"],
   Tools: ["id", "category", "name", "serial_number", "current_project", "status", "repair_status", "repair_date", "purchase_shop", "purchase_date", "purchase_price", "warranty_expiry", "images", "last_updated", "storage_location"],
   MaterialLogs: ["id", "timestamp", "project", "material_id", "material_name", "quantity", "price_at_time", "stock_location", "type", "borrower", "authorizer"],
   ToolLogs: ["id", "timestamp", "action", "tool_id", "tool_name", "from_project", "to_project", "borrower", "authorizer", "notes"],
@@ -112,14 +112,27 @@ function fetchAllData() {
     
     for (var i = 1; i < rows.length; i++) {
       var row = rows[i];
+      // Skip completely empty rows or rows without an ID
+      if (row[0] === "" || row[0] === null || row[0] === undefined) {
+        continue;
+      }
+      
       var obj = {};
       for (var j = 0; j < headers.length; j++) {
         var val = row[j];
-        // แปลงฟอร์แมตข้อมูลพิเศษ (เช่นวันที่หรือ JSON รูปภาพ)
         if (val instanceof Date) {
-          obj[headers[j]] = val.toISOString().split('T')[0]; // ส่งแค่วันที่ YYYY-MM-DD
+          obj[headers[j]] = val.toISOString().split('T')[0];
         } else {
           obj[headers[j]] = val;
+        }
+      }
+      
+      // Try to parse JSON back if applicable
+      for (var key in obj) {
+        if (typeof obj[key] === "string" && (obj[key].startsWith("[") || obj[key].startsWith("{"))) {
+          try {
+            obj[key] = JSON.parse(obj[key]);
+          } catch(e) {}
         }
       }
       list.push(obj);
@@ -184,71 +197,83 @@ function updateTable(sheetName, items) {
   var rows = sheet.getDataRange().getValues();
   var headers = rows[0];
   
-  // สร้าง Map ค้นหาแถวตาม id ในคอลัมน์แรก
   var idRowMap = {};
   for (var i = 1; i < rows.length; i++) {
     var rowId = rows[i][0].toString();
     if (rowId) {
-      idRowMap[rowId] = i + 1; // 1-indexed สำหรับชีต
+      idRowMap[rowId] = i; 
     }
   }
+  
+  var newRowsToAppend = [];
   
   items.forEach(function(item) {
     var id = item.id.toString();
     var newRow = [];
-    
-    // เรียงลำดับคอลัมน์ให้ตรงตามที่ตั้งค่า
     headers.forEach(function(header) {
       var val = item[header];
       if (val === undefined || val === null) {
         newRow.push("");
       } else if (Array.isArray(val) || typeof val === "object") {
-        newRow.push(JSON.stringify(val)); // แปลง List หรือ Object ให้เป็น JSON String เช่นภาพ
+        newRow.push(JSON.stringify(val));
       } else {
         newRow.push(val);
       }
     });
     
-    var rowNum = idRowMap[id];
-    if (rowNum) {
-      // อัปเดตแถวเดิม
-      var range = sheet.getRange(rowNum, 1, 1, headers.length);
-      range.setValues([newRow]);
+    var rowIdx = idRowMap[id];
+    if (rowIdx !== undefined) {
+      rows[rowIdx] = newRow;
     } else {
-      // เขียนแถวใหม่ต่อท้าย
-      sheet.appendRow(newRow);
+      newRowsToAppend.push(newRow);
     }
   });
+  
+  if (rows.length > 1) {
+    sheet.getRange(2, 1, rows.length - 1, headers.length).setValues(rows.slice(1));
+  }
+  
+  if (newRowsToAppend.length > 0) {
+    sheet.getRange(rows.length + 1, 1, newRowsToAppend.length, headers.length).setValues(newRowsToAppend);
+  }
 }
 
-// เพิ่มประวัติ (Logs) เข้าไปต่อท้ายแถวล่าสุดเสมอ
 function appendLogs(sheetName, logs) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
-  var rows = sheet.getDataRange().getValues();
-  var headers = rows[0];
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
-  // ดึง ID ล่าสุดในตารางเพื่อหลีกเลี่ยงการบันทึกประวัติซ้ำซ้อน
   var existingIds = {};
-  for (var i = 1; i < rows.length; i++) {
-    existingIds[rows[i][0].toString()] = true;
+  if (sheet.getLastRow() > 1) {
+    var idColumn = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < idColumn.length; i++) {
+      existingIds[idColumn[i][0].toString()] = true;
+    }
   }
   
+  var rowsToAppend = [];
   logs.forEach(function(log) {
-    var id = log.id.toString();
-    if (!existingIds[id]) {
-      var newRow = [];
-      headers.forEach(function(header) {
-        var val = log[header];
-        if (val === undefined || val === null) {
-          newRow.push("");
-        } else if (Array.isArray(val) || typeof val === "object") {
-          newRow.push(JSON.stringify(val));
-        } else {
-          newRow.push(val);
-        }
-      });
-      sheet.appendRow(newRow);
+    var id = log.id ? log.id.toString() : "";
+    if (id && existingIds[id]) {
+      return;
     }
+    
+    var newRow = [];
+    headers.forEach(function(header) {
+      var val = log[header];
+      if (val === undefined || val === null) {
+        newRow.push("");
+      } else if (Array.isArray(val) || typeof val === "object") {
+        newRow.push(JSON.stringify(val));
+      } else {
+        newRow.push(val);
+      }
+    });
+    rowsToAppend.push(newRow);
   });
+  
+  if (rowsToAppend.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, headers.length).setValues(rowsToAppend);
+  }
 }
+

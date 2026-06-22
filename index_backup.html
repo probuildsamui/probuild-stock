@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <script>
     window.onerror = function(message, source, lineno, colno, error) {
-      console.error("JS Error:", message, "at", source, "line", lineno, "col", colno);
-      return true;
+      alert("❌ JavaScript Error:\n" + message + "\n\nไฟล์: " + source + "\nบรรทัดที่: " + lineno + "\nคอลัมน์: " + colno);
+      return false;
     };
   </script>
   <meta charset="UTF-8">
@@ -18,19 +18,9 @@
   <link rel="stylesheet" href="style.css">
   
   <!-- ไฟล์ฐานข้อมูลและสคริปต์ควบคุม -->
-  <script src="db.js?v=11"></script>
-  <script src="app.js?v=38"></script>
-  <script src="logic.js?v=23"></script>
-    <!-- Mobile Drag and Drop Polyfill -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/default.css">
-  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/index.min.js"></script>
-  <script>
-    MobileDragDrop.polyfill({
-      dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
-    });
-    window.addEventListener('touchmove', function() {}, {passive: false});
-  </script>
-
+  <script src="db.js?v=3"></script>
+  <script src="app.js?v=3"></script>
+  <script src="logic.js?v=1"></script>
 </head>
 <body>
 
@@ -93,10 +83,7 @@
         <div class="menu-item" id="nav-users" data-tab="users" style="display:none;"><i class="fas fa-users-cog"></i>การจัดการบัญชีพนักงาน</div>
         <div class="menu-item" id="nav-projects" data-tab="projects" style="display:none;"><i class="fas fa-city"></i>การจัดการโครงการ</div>
         <div class="menu-item" id="nav-warehouses" data-tab="warehouses" style="display:none;"><i class="fas fa-warehouse"></i>การจัดการคลังวัสดุ</div>
-        <div class="menu-item" id="nav-approvals" data-tab="approvals" style="display:none; position:relative;">
-          <i class="fas fa-clipboard-check"></i>อนุมัติรายการ
-          <span id="approval-badge" style="display:none; position:absolute; right:15px; top:50%; transform:translateY(-50%); background:#ef4444; color:#fff; border-radius:10px; padding:2px 6px; font-size:12px; font-weight:bold; min-width:20px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.2);">0</span>
-        </div>
+        <div class="menu-item" id="nav-approvals" data-tab="approvals" style="display:none;"><i class="fas fa-clipboard-check"></i>อนุมัติรายการเครื่องมือ</div>
         <div class="menu-item" id="nav-settings" data-tab="settings" style="display:none;"><i class="fas fa-cog"></i>การตั้งค่า & Sync Sheet</div>
       </nav>
       
@@ -236,14 +223,14 @@
             <div class="table-toolbar">
               <div class="search-input-wrapper">
                 <i class="fas fa-search"></i>
-                <input type="text" id="mat-search" class="search-input" oninput="renderMaterials()" placeholder="พิมพ์หรือกดไมค์เพื่อค้นหาวัสดุ...">
+                <input type="text" id="mat-search" class="search-input" placeholder="พิมพ์หรือกดไมค์เพื่อค้นหาวัสดุ...">
                 <button type="button" class="btn-voice" id="voice-mat-search" onclick="startVoice('mat-search','voice-mat-search')" title="ค้นหาด้วยเสียง (ภาษาไทย)">
                   <i class="fas fa-microphone"></i>
                 </button>
               </div>
               
               <div class="toolbar-actions">
-                <select id="mat-cat-filter" class="select-filter" onchange="renderMaterials()">
+                <select id="mat-cat-filter" class="select-filter">
                   <option value="">-- ทุกหมวดหมู่ --</option>
                   <option value="ปูนซีเมนต์">ปูนซีเมนต์</option>
                   <option value="เหล็กเส้น">เหล็กเส้น</option>
@@ -252,7 +239,9 @@
                   <option value="อุปกรณ์อื่นๆ">อุปกรณ์อื่นๆ</option>
                 </select>
                 
-                <button class="btn btn-secondary" onclick="openAddMaterialModal()" style="background:var(--accent); border:none; color:#fff; font-weight:600;"><i class="fas fa-plus"></i> เพิ่มชื่อวัสดุใหม่</button>
+                <button class="btn btn-secondary" onclick="openReceiveMaterialModal()"><i class="fas fa-plus-circle"></i> รับเข้าวัสดุ</button>
+                <button class="btn btn-primary" onclick="openWithdrawMaterialModal()"><i class="fas fa-minus-circle"></i> เบิกสินค้า</button>
+                <button class="btn btn-secondary" onclick="openAddMaterialModal()" style="background:rgba(13, 148, 136, 0.1); border:1px solid var(--accent); color:var(--accent);"><i class="fas fa-plus"></i> เพิ่มชื่อวัสดุใหม่</button>
               </div>
             </div>
             
@@ -306,7 +295,7 @@
                   <option value="retired">ยุติการใช้งาน</option>
                 </select>
                 
-                <button class="btn btn-secondary" onclick="document.getElementById('tool-form-el').reset(); document.getElementById('tool-form-id').value=''; document.getElementById('tool-modal-title').textContent='เพิ่มเครื่องมือช่างใหม่'; openModal('tool-form-modal');" style="background:rgba(13, 148, 136, 0.1); border:1px solid var(--accent); color:var(--accent);"><i class="fas fa-plus"></i> เพิ่มเครื่องมือใหม่</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('tool-form').reset(); document.getElementById('tool-form-id').value=''; document.getElementById('tool-modal-title').textContent='เพิ่มเครื่องมือช่างใหม่'; openModal('tool-form-modal');" style="background:rgba(13, 148, 136, 0.1); border:1px solid var(--accent); color:var(--accent);"><i class="fas fa-plus"></i> เพิ่มเครื่องมือใหม่</button>
               </div>
             </div>
             
@@ -536,9 +525,54 @@
           </div>
         </div>
 
-                <!-- ==================== VIEW: APPROVALS ==================== -->
-                <div id="view-approvals" class="view-panel">
-          <!-- เนื้อหาจะถูกเรนเดอร์ผ่าน renderApprovals() ใน logic.js -->
+        <!-- ==================== VIEW: APPROVALS (อนุมัติรายการเครื่องมือ) ==================== -->
+        <div id="view-approvals" class="view-panel">
+          <div class="card" style="margin-bottom: 24px;">
+            <div class="list-widget-header" style="margin-bottom:20px;">
+              <h3 class="list-widget-title" style="color: var(--accent);"><i class="fas fa-plus-circle"></i> คำขอเพิ่มเครื่องมือใหม่ (Pending Adds)</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th>ชื่อเครื่องมือ</th>
+                    <th>หมวดหมู่</th>
+                    <th>Serial Number</th>
+                    <th>วันที่ซื้อ</th>
+                    <th style="text-align:right;">ราคา (บาท)</th>
+                    <th>ผู้ส่งคำขอ</th>
+                    <th style="text-align:center; width:180px;">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="approvals-add-list">
+                  <!-- โหลดคำขอเพิ่มเครื่องมือ -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="list-widget-header" style="margin-bottom:20px;">
+              <h3 class="list-widget-title" style="color: var(--danger);"><i class="fas fa-ban"></i> คำขอยุติการใช้งานเครื่องมือ (Pending Retires)</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th>เครื่องมือ</th>
+                    <th>Serial Number</th>
+                    <th>โครงการล่าสุด</th>
+                    <th>ผู้ส่งคำขอ</th>
+                    <th>เหตุผล/อาการชำรุด</th>
+                    <th style="text-align:center; width:180px;">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="approvals-retire-list">
+                  <!-- โหลดคำขอยุติการใช้งาน -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- ==================== VIEW: SETTINGS ==================== -->
@@ -604,11 +638,16 @@
         <h3 class="modal-title">แบบฟอร์มเบิกจ่ายวัสดุก่อสร้างออกไปโครงการ</h3>
         <button class="btn-close-modal" onclick="closeModal('withdraw-material-modal')"><i class="fas fa-times"></i></button>
       </div>
-      <form id="withdraw-mat-form" onsubmit="event.preventDefault(); handleWithdrawMaterialFinal(event); return false;">
+      <form id="withdraw-mat-form">
         <div class="modal-body">
           <div class="form-group autocomplete-container">
             <label class="form-label" for="withdraw-mat-name">พิมพ์ค้นหาวัสดุก่อสร้าง (Autocomplete)</label>
-            <div><input type="text" id="withdraw-mat-name" class="form-control" placeholder="พิมพ์ชื่อยี่ห้อ ขนาด หรือชนิดวัสดุ..." required autocomplete="off" readonly style="background:#f0f4ff;color:#1e40af;font-weight:600;cursor:default;"></div>
+            <div class="voice-input-row">
+              <input type="text" id="withdraw-mat-name" class="form-control" placeholder="พิมพ์ชื่อยี่ห้อ ขนาด หรือชนิดวัสดุ..." required autocomplete="off">
+              <button type="button" class="btn-voice" id="voice-withdraw-mat" onclick="startVoice('withdraw-mat-name','voice-withdraw-mat')" title="พูดชื่อวัสดุ">
+                <i class="fas fa-microphone"></i>
+              </button>
+            </div>
             <div id="withdraw-mat-dropdown" class="autocomplete-dropdown"></div>
             <div id="withdraw-mat-qty-label" style="font-size:11px; color:var(--accent); margin-top:6px;">ยอดคงคลัง: -</div>
           </div>
@@ -627,12 +666,11 @@
             
             <div class="form-group">
               <label class="form-label" for="withdraw-mat-location">เบิกจ่ายออกจากคลังย่อย</label>
-              <select id="withdraw-mat-location" class="form-control" required onchange="updateWithdrawStockInfo(this.value)">
+              <select id="withdraw-mat-location" class="form-control" required>
                 <option value="Stock A">Stock A</option>
                 <option value="Stock B">Stock B</option>
                 <option value="Stock C">Stock C</option>
               </select>
-              <div id="withdraw-stock-info" style="font-size:12px; color:var(--accent); margin-top:6px; font-weight:600;"></div>
             </div>
           </div>
 
@@ -644,16 +682,20 @@
             
             <div class="form-group">
               <label class="form-label" for="withdraw-mat-borrower">พนักงานโฟร์แมนผู้เบิก/รับของ</label>
-              <select id="withdraw-mat-borrower" class="form-control" required>
-                <option value="" disabled selected>-- เลือกชื่อพนักงาน --</option>
-              </select>
+              <div class="voice-input-row">
+                <input type="text" id="withdraw-mat-borrower" class="form-control" placeholder="พิมพ์ชื่อผู้เบิก..." required>
+                <button type="button" class="btn-voice" id="voice-withdraw-borrower" onclick="startVoice('withdraw-mat-borrower','voice-withdraw-borrower')" title="พูดชื่อผู้เบิก">
+                  <i class="fas fa-microphone"></i>
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="form-group">
-          <label class="form-label">พนักงานคลังสินค้าผู้อนุมัติ/ผู้จ่ายของ (ออโต้จากผู้ล็อกอิน)</label>
-          <input type="text" id="withdraw-mat-auth" class="form-control" readonly style="background:rgba(13,148,136,0.05); border-color:var(--accent);">
-        </div>
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="withdraw-mat-auth">พนักงานคลังสินค้าผู้อนุมัติ/ผู้จ่ายของ (ลงชื่อ)</label>
+            <input type="text" id="withdraw-mat-auth" class="form-control" placeholder="พิมพ์ชื่อผู้ปล่อยเบิก..." required autocomplete="off">
+            <div id="withdraw-mat-auth-dropdown" class="autocomplete-dropdown"></div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('withdraw-material-modal')">ยกเลิก</button>
@@ -670,11 +712,16 @@
         <h3 class="modal-title">แบบฟอร์มรับเข้าวัสดุสู่คลังสินค้ากลาง</h3>
         <button class="btn-close-modal" onclick="closeModal('receive-material-modal')"><i class="fas fa-times"></i></button>
       </div>
-      <form id="receive-mat-form" onsubmit="event.preventDefault(); handleReceiveMaterialFixed(event); return false;">
+      <form id="receive-mat-form">
         <div class="modal-body">
           <div class="form-group autocomplete-container">
             <label class="form-label" for="receive-mat-name">พิมพ์ชื่อวัสดุที่ต้องการรับเข้า (Autocomplete)</label>
-            <div><input type="text" id="receive-mat-name" class="form-control" placeholder="เลือกรายการวัสดุก่อสร้าง..." required autocomplete="off" readonly style="background:#f0f4ff;color:#1e40af;font-weight:600;cursor:default;"></div>
+            <div class="voice-input-row">
+              <input type="text" id="receive-mat-name" class="form-control" placeholder="เลือกรายการวัสดุก่อสร้าง..." required autocomplete="off">
+              <button type="button" class="btn-voice" id="voice-receive-mat" onclick="startVoice('receive-mat-name','voice-receive-mat')" title="พูดชื่อวัสดุ">
+                <i class="fas fa-microphone"></i>
+              </button>
+            </div>
             <div id="receive-mat-dropdown" class="autocomplete-dropdown"></div>
           </div>
 
@@ -707,10 +754,11 @@
             </div>
           </div>
 
-          <div class="form-group">
-          <label class="form-label">พนักงานตรวจสอบ/ผู้รับของ (ออโต้จากผู้ล็อกอิน)</label>
-          <input type="text" id="receive-mat-auth" class="form-control" readonly style="background:rgba(13,148,136,0.05); border-color:var(--accent);">
-        </div>
+          <div class="form-group autocomplete-container">
+            <label class="form-label" for="receive-mat-auth">พนักงานตรวจสอบ/ผู้รับของ (ลงชื่อ)</label>
+            <input type="text" id="receive-mat-auth" class="form-control" placeholder="พนักงานผู้ตรวจสต็อก..." required autocomplete="off">
+            <div id="receive-mat-auth-dropdown" class="autocomplete-dropdown"></div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('receive-material-modal')">ยกเลิก</button>
@@ -727,7 +775,7 @@
         <h3 class="modal-title">เพิ่มชื่อวัสดุก่อสร้างรายการใหม่</h3>
         <button class="btn-close-modal" onclick="closeModal('material-add-modal')"><i class="fas fa-times"></i></button>
       </div>
-      <form id="add-mat-form" onsubmit="event.preventDefault(); handleAddMaterialForm(event); return false;">
+      <form id="add-mat-form">
         <div class="modal-body">
           <div class="form-group autocomplete-container">
             <label class="form-label" for="add-mat-name">ชื่อของวัสดุ (ระบุรุ่น/ยี่ห้อ/ขนาด ให้ชัดเจน)</label>
@@ -786,15 +834,6 @@
       </form>
     </div>
   </div>
-  <!-- 5. ป๊อปอัปเพิ่ม/แก้ไขเครื่องมือช่างและถ่ายรูปแนบ (พร้อมจำลองระบบสแกน OCR) -->
-  <div id="tool-form-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title" id="tool-modal-title">เพิ่มเครื่องมือช่างใหม่</h3>
-        <button class="btn-close-modal" onclick="closeModal('tool-form-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="tool-form-el" onsubmit="event.preventDefault(); handleSaveTool(event); return false;">
-        <div class="modal-body">
           <input type="hidden" id="tool-form-id">
           
           <!-- กล่องตัวควบคุมกล้องถ่ายภาพจำลองเพื่อทำ OCR -->
@@ -1141,417 +1180,12 @@
         <div>
           <h4 style="font-size:14px; margin-bottom:8px;">แกลเลอรีรูปภาพ / ใบเสร็จ</h4>
           <div id="detail-tool-gallery" style="display:flex; flex-wrap:wrap; gap:10px;">
-            <input type="hidden" id="return-tool-id">
-          </div>
-
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="return-tool-condition">สภาพและสถานะเครื่องมือตอนส่งคืน</label>
-              <select id="return-tool-condition" class="form-control" required>
-                <option value="usable">✅ ปกติดีพร้อมใช้งาน</option>
-                <option value="damaged">❌ ชำรุดเสียหาย (ส่งเข้าแผนกซ่อม)</option>
-              </select>
-            </div>
-            
-            <div class="form-group autocomplete-container">
-              <label class="form-label" for="return-tool-borrower">โฟร์แมนผู้ส่งคืนเครื่องมือ</label>
-              <input type="text" id="return-tool-borrower" class="form-control" placeholder="ชื่อผู้คืนของ..." required autocomplete="off">
-              <div id="return-tool-borrower-dropdown" class="autocomplete-dropdown"></div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="return-tool-location">คลังย่อยที่รับคืนจัดเก็บ</label>
-            <select id="return-tool-location" class="form-control" required>
-              <!-- โหลดคลังสินค้าอัตโนมัติ -->
-            </select>
-          </div>
-
-          <div class="form-group autocomplete-container">
-            <label class="form-label" for="return-tool-auth">เจ้าหน้าที่สต็อกผู้รับมอบและตรวจสอบ (ลงชื่อ)</label>
-            <input type="text" id="return-tool-auth" class="form-control" placeholder="ผู้ตรวจคืนของ..." required autocomplete="off">
-            <div id="return-tool-auth-dropdown" class="autocomplete-dropdown"></div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="return-tool-notes">อาการหรือรายละเอียดชำรุดเสียหาย (ถ้ามี)</label>
-            <input type="text" id="return-tool-notes" class="form-control" placeholder="ระบุอาการ เช่น สายไฟขาด หรือใบเจียรแตก...">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('return-tool-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">บันทึกรับคืนของ</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 9. ป๊อปอัปโยกย้ายเครื่องมือระหว่างโครงการ -->
-  <div id="transfer-tool-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">โยกย้ายเครื่องมือไปยังโครงการอื่น</h3>
-        <button class="btn-close-modal" onclick="closeModal('transfer-tool-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="transfer-tool-form">
-        <div class="modal-body">
-          <input type="hidden" id="trans-tool-id">
-          <div class="form-group">
-            <span class="form-label">ชื่อเครื่องมือช่างที่ทำการโยกย้าย</span>
-            <strong id="trans-tool-name" style="font-size:16px;">-</strong>
-          </div>
-          
-          <div class="form-grid-2">
-            <div class="form-group">
-              <span class="form-label">โครงการต้นทางเดิม</span>
-              <strong id="trans-tool-from" style="color:var(--warning); font-size:14px;">-</strong>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="trans-tool-to">โยกย้ายไปโครงการปลายทาง</label>
-              <select id="trans-tool-to" class="form-control" required>
-                <option value="" disabled selected>-- เลือกวิลล่าปลายทาง --</option>
-                <option value="โครงการ วิลล่า A (แม่น้ำ)">โครงการ วิลล่า A (แม่น้ำ)</option>
-                <option value="โครงการ วิลล่า B (บ่อผุด)">โครงการ วิลล่า B (บ่อผุด)</option>
-                <option value="โครงการ วิลล่า C (ลิปะน้อย)">โครงการ วิลล่า C (ลิปะน้อย)</option>
-                <option value="คลังสินค้ากลาง">คลังสินค้ากลาง (ย้ายกลับคลัง)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="trans-tool-borrower">โฟร์แมนผู้ขนย้ายอุปกรณ์</label>
-              <select id="trans-tool-borrower" class="form-control" required>
-                <option value="" disabled selected>-- เลือกผู้ย้ายของ --</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="trans-tool-auth">ผู้อนุมัติการโยกย้ายครั้งนี้ (ลงชื่อ)</label>
-              <input type="text" id="trans-tool-auth" class="form-control" value="รออนุมัติ" readonly>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="trans-tool-notes">เหตุผลในการโยกย้ายเครื่องมือ</label>
-            <input type="text" id="trans-tool-notes" class="form-control" placeholder="เช่น คอนโดวิลล่า A ทำส่วนคอนกรีตเสร็จก่อน เลยย้ายไปวิลล่า B..." required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('transfer-tool-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">ยืนยันการขอโยกย้าย</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 10. แผงควบคุมประวัติการส่งซ่อมอุปกรณ์ช่าง (พร้อมปุ่มเกษียณชำรุดเสียหายถาวร) -->
-  <div id="repair-tool-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">อัปเดตประวัติและสถานะซ่อมเครื่องมือช่าง</h3>
-        <button class="btn-close-modal" onclick="closeModal('repair-tool-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="repair-tool-form">
-        <div class="modal-body">
-          <input type="hidden" id="repair-tool-id">
-          
-          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:12px; margin-bottom:16px;">
-            <div>
-              <strong id="repair-tool-name" style="font-size:16px; display:block;">-</strong>
-              <span style="font-size:12px; color:var(--text-secondary);">ซีเรียล: <code id="repair-tool-sn">-</code></span>
-            </div>
-            
-            <!-- ปุ่มยุติการใช้งาน/นำกลับมาใช้ใหม่ -->
-            <button type="button" class="btn btn-danger" id="btn-retire-tool" onclick="triggerRetireTool()" style="padding: 6px 12px; font-size:12px;"><i class="fas fa-trash-alt"></i> ยุติการใช้งานเครื่องมือนี้</button>
-          </div>
-          
-          <div class="form-group">
-            <h4 style="font-size:14px; margin:0 0 12px 0;">ไทม์ไลน์การซ่อมปัจจุบัน (Repair Timeline)</h4>
-            <!-- mock timeline -->
-          </div>
-          
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="repair-status">เปลี่ยนสถานะความคืบหน้าการซ่อม</label>
-              <select id="repair-status" class="form-control" required>
-                <option value="requested">แจ้งส่งซ่อม (Requested)</option>
-                <option value="in_progress">กำลังซ่อม (In Progress)</option>
-                <option value="completed">ซ่อมเสร็จ/ใช้งานได้ (Completed)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="repair-reporter">ผู้บันทึกความคืบหน้าการซ่อม (ลงชื่อ)</label>
-              <input type="text" id="repair-reporter" class="form-control" placeholder="ชื่อผู้รายงาน..." required>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label" for="repair-tool-notes">อาการรายละเอียดและการแก้ปัญหา / ค่าซ่อมประเมิน</label>
-            <input type="text" id="repair-tool-notes" class="form-control" placeholder="เช่น ส่งซ่อมร้านสมุยบัวทอง อะไหล่คาปาซิเตอร์เสีย 450 บาท" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('repair-tool-modal')">ปิดหน้าต่าง</button>
-          <button type="submit" class="btn btn-primary">อัปเดตสถานะการซ่อม</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 11. หน้าต่างรายละเอียดเครื่องมือช่าง (View Details Modal) -->
-  <div id="tool-details-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">รายละเอียดเครื่องมือ</h3>
-        <button class="btn-close-modal" onclick="closeModal('tool-details-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <div style="text-align:center; margin-bottom:16px;">
-          <h2 id="detail-tool-name" style="font-size:20px; font-weight:bold; margin-bottom:4px;">-</h2>
-          <span id="detail-tool-sn" style="color:var(--text-muted); font-size:14px;">-</span>
-        </div>
-        
-        <div class="form-grid-2" style="margin-bottom:16px; background:#f8fafc; padding:12px; border-radius:8px;">
-          <div>
-            <div style="font-size:12px; color:var(--text-muted);">สถานะการรับประกัน</div>
-            <strong id="detail-tool-warranty">-</strong>
-          </div>
-          <div>
-            <div style="font-size:12px; color:var(--text-muted);">ร้านที่จัดซื้อมา</div>
-            <strong id="detail-tool-store">-</strong>
-          </div>
-          <div>
-            <div style="font-size:12px; color:var(--text-muted);">ราคาซื้อสุทธิ</div>
-            <strong id="detail-tool-price">-</strong>
-          </div>
-          <div>
-            <div style="font-size:12px; color:var(--text-muted);">วันที่ซื้อ</div>
-            <strong id="detail-tool-purchased">-</strong>
-          </div>
-        </div>
-
-        <div>
-          <h4 style="font-size:14px; margin-bottom:8px;">แกลเลอรีรูปภาพ / ใบเสร็จ</h4>
-          <div id="detail-tool-gallery" style="display:flex; flex-wrap:wrap; gap:10px;">
             <!-- รูปภาพแกลเลอรี -->
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <div style="text-align:center; margin-top:16px;">
-          <button type="button" class="btn btn-outline" onclick="openEditToolImagesModal()" style="color:var(--primary-color); border-color:var(--primary-color); padding:8px 16px; margin-bottom:12px;">
-            <i class="fas fa-images"></i> แก้ไขรูปภาพ
-          </button>
-        </div>
         <button type="button" class="btn btn-secondary" onclick="closeModal('tool-details-modal')" style="width:100%;">ปิดหน้าต่าง</button>
-      </div>
-    </div>
-  </div>
-
-    <!-- 4. ป๊อปอัปแก้ไขราคากลางสินค้า/เพิ่มสินค้าใหม่ -->
-  <div id="material-edit-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title" id="material-modal-title">ตั้งค่าข้อมูลวัสดุ</h3>
-        <button class="btn-close-modal" onclick="closeModal('material-edit-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="mat-edit-form" onsubmit="event.preventDefault(); handleSaveMaterial(event); return false;">
-        <div class="modal-body">
-          <input type="hidden" id="mat-form-id">
-          <div class="form-group">
-            <label class="form-label" for="mat-name">ชื่อวัสดุ</label>
-            <input type="text" id="mat-name" class="form-control" required>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="mat-code">รหัสวัสดุ (Code)</label>
-              <input type="text" id="mat-code" class="form-control">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="mat-category">หมวดหมู่</label>
-              <select id="mat-category" class="form-control" required>
-                <option value="งานโครงสร้าง">งานโครงสร้าง</option>
-                <option value="งานสถาปัตยกรรม">งานสถาปัตยกรรม</option>
-                <option value="งานระบบไฟฟ้า">งานระบบไฟฟ้า</option>
-                <option value="งานระบบประปา">งานระบบประปา</option>
-                <option value="อื่นๆ">อื่นๆ</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="mat-unit">หน่วยนับ</label>
-              <input type="text" id="mat-unit" class="form-control" placeholder="เช่น ชิ้น, ถุง" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="mat-min-stock">ขั้นต่ำสต็อกสำหรับเตือน (Min Stock)</label>
-              <input type="number" id="mat-min-stock" class="form-control" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="mat-price">ราคากลางต่อชิ้น (บาท)</label>
-            <input type="number" id="mat-price" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <label class="form-label" style="margin:0;">รูปถ่ายวัสดุ (อัปโหลดหรือใส่ URL)</label>
-              <button type="button" id="btn-mat-image-edit-toggle" class="btn btn-outline" onclick="toggleMatImageEditMode()" style="font-size:12px; padding:4px 8px; transition:all 0.2s;">
-                <i class="fas fa-edit"></i> แก้ไขรูปภาพ
-              </button>
-            </div>
-            <div id="mat-edit-image-preview" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;"></div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="text" id="mat-image-url" class="form-control" placeholder="URL รูปภาพ (ไม่บังคับ)">
-              <label style="cursor:pointer; background:var(--accent); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; white-space:nowrap; flex-shrink:0;">
-                <i class="fas fa-upload"></i> อัปโหลด
-                <input type="file" id="mat-image-upload" accept="image/*" multiple style="display:none;" onchange="handleMatImageUpload(this)">
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('material-edit-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 11. หน้าจอป๊อปอัปเพิ่ม/แก้ไขบัญชีผู้ใช้งาน (สำหรับผู้จัดการเท่านั้น) -->
-  <div id="user-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title" id="user-modal-title">เพิ่มพนักงานคนใหม่</h3>
-        <button class="btn-close-modal" onclick="closeModal('user-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="user-form-el" onsubmit="event.preventDefault(); handleSaveUser(event); return false;">
-        <div class="modal-body">
-          <input type="hidden" id="user-form-id">
-          <div class="form-group">
-            <label class="form-label" for="user-name">ชื่อจริง - นามสกุล พนักงาน</label>
-            <input type="text" id="user-name" class="form-control" placeholder="เช่น นายประดิษฐ์ มีสุข" required>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="user-username">ชื่อสำหรับเข้าสู่ระบบ (Username)</label>
-              <input type="text" id="user-username" class="form-control" placeholder="ภาษาอังกฤษ ตัวเลข..." required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-password">รหัสผ่าน 3 หลัก (PIN Code)</label>
-              <input type="password" id="user-password" class="form-control" placeholder="ตัวเลขเพื่อล็อกอินด่วน..." required maxlength="6">
-            </div>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="user-role">ตำแหน่ง / บทบาทหน้าที่</label>
-              <select id="user-role" class="form-control" required>
-                <option value="foreman">โฟร์แมนโครงการหน้างาน (Foreman)</option>
-                <option value="stock_keeper">พนักงานคุมสต็อกของ (Stock Keeper)</option>
-                <option value="manager">ผู้จัดการหรือเจ้าของ (Manager)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-status">สถานะพนักงานในปัจจุบัน</label>
-              <select id="user-status" class="form-control" required>
-                <option value="active">กำลังปฏิบัติหน้าที่ (Active)</option>
-                <option value="inactive">ออกจากการทำงานแล้ว (Inactive)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('user-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">บันทึกบัญชีพนักงาน</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 13. หน้าจอป๊อปอัปเพิ่ม/แก้ไขโครงการ (สำหรับผู้จัดการเท่านั้น) -->
-  <div id="project-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title" id="project-modal-title">เพิ่มโครงการใหม่</h3>
-        <button class="btn-close-modal" onclick="closeModal('project-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="project-form-el" onsubmit="event.preventDefault(); handleSaveProject(event); return false;">
-        <div class="modal-body">
-          <input type="hidden" id="project-form-id">
-          <div class="form-group">
-            <label class="form-label" for="project-name">ชื่อโครงการ/วิลล่า (เช่น โครงการ วิลล่า D (เชิงมน))</label>
-            <input type="text" id="project-name" class="form-control" placeholder="พิมพ์ชื่อโครงการ..." required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="project-desc">รายละเอียดของโครงการ</label>
-            <textarea id="project-desc" class="form-control" rows="3" placeholder="ระบุรายละเอียด เช่น บ้านสองชั้น พื้นที่ใช้สอย, กำหนดเสร็จ..." required></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('project-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">บันทึกข้อมูลโครงการ</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 14. หน้าจอป๊อปอัปเพิ่ม/แก้ไขคลังสินค้า (สำหรับผู้จัดการเท่านั้น) -->
-  <div id="warehouse-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title" id="warehouse-modal-title">เพิ่มคลังสินค้าใหม่</h3>
-        <button class="btn-close-modal" onclick="closeModal('warehouse-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="warehouse-form-el" onsubmit="event.preventDefault(); handleSaveWarehouse(event); return false;">
-        <div class="modal-body">
-          <input type="hidden" id="warehouse-form-id">
-          <div class="form-group">
-            <label class="form-label" for="warehouse-name">ชื่อคลังจัดเก็บสินค้า (เช่น สโตร์ด่านเก่า หรือ Stock A)</label>
-            <input type="text" id="warehouse-name" class="form-control" placeholder="พิมพ์ชื่อคลังจัดเก็บ..." required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('warehouse-modal')">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary">บันทึกข้อมูลคลังสินค้า</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-    <!-- Center Alert Modal -->
-  <div id="center-alert-modal" class="modal-overlay" style="z-index: 10000; display: none;">
-    <div class="modal-container" style="max-width: 400px; text-align: center; padding: 30px 20px;">
-      <i class="fas fa-check-circle" style="font-size: 60px; color: var(--success); margin-bottom: 15px;"></i>
-      <h3 class="modal-title" id="center-alert-title" style="margin-bottom: 10px; border-bottom: none; padding-bottom: 0;">สำเร็จ</h3>
-      <p id="center-alert-message" style="color: var(--text-muted); margin-bottom: 25px; line-height: 1.5; font-size: 15px;">ทำรายการเรียบร้อยแล้ว</p>
-      <button class="btn btn-primary" onclick="closeModal('center-alert-modal')" style="width: 100%; font-size: 16px; padding: 12px;">ตกลง (OK)</button>
-    </div>
-  </div>
-
-  <!-- Image Edit Modal -->
-  <div id="tool-image-edit-modal" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">แก้ไขรูปภาพเครื่องมือ</h3>
-        <button class="btn-close-modal" onclick="closeModal('tool-image-edit-modal')"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="edit-image-tool-id">
-        <div style="margin-bottom: 15px;">
-          <input type="file" id="edit-tool-images-upload" accept="image/*" multiple style="display:none;" onchange="handleEditToolImageUpload(event)">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-tool-images-upload').click()" style="width:100%; background:#f8fafc; border:2px dashed #cbd5e1; color:#475569; padding:12px;">
-            <i class="fas fa-camera" style="font-size:24px; display:block; margin-bottom:8px;"></i>
-            คลิกเพื่อถ่ายรูปหรืออัปโหลดรูปภาพเพิ่มเติม
-          </button>
-        </div>
-        <div class="images-container" id="edit-tool-images-preview" style="display:flex; flex-wrap:wrap; gap:10px; min-height: 100px; padding: 10px; background: #f1f5f9; border-radius: 8px;">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('tool-image-edit-modal')">ยกเลิก</button>
-        <button type="button" class="btn btn-primary" onclick="saveToolImages()">ยืนยันการแก้ไข</button>
       </div>
     </div>
   </div>
@@ -1574,83 +1208,5 @@
     <span class="voice-interim" id="voice-interim-text"></span>
   </div>
 
-  <script>
-  // ── Pre-request microphone permission once so SpeechRecognition never asks again ──
-  (function requestMicPermissionOnce() {
-    if (!window.navigator || !window.navigator.mediaDevices) return;
-    // Only request if not already granted
-    if (window.navigator.permissions && window.navigator.permissions.query) {
-      window.navigator.permissions.query({ name: 'microphone' }).then(function(result) {
-        if (result.state === 'granted') {
-          window._voicePermissionGranted = true;
-          window._voicePermissionWarned = true; // suppress any future warnings
-        } else if (result.state === 'prompt') {
-          // Will silently request when user first uses voice — listener will remember
-          result.onchange = function() {
-            if (result.state === 'granted') {
-              window._voicePermissionGranted = true;
-              window._voicePermissionWarned = true;
-            }
-          };
-        }
-      }).catch(function(){});
-    }
-  })();
-  </script>
-  <script>
-  // ── Expose global helpers after all scripts loaded ──
-  document.addEventListener('DOMContentLoaded', function() {
-    // Pre-check microphone permission status
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'microphone' }).then(function(result) {
-        window._voicePermissionGranted = (result.state === 'granted');
-        if (result.state === 'granted') {
-          window._voicePermissionWarned = true; // suppress any warning toast
-        }
-        result.addEventListener('change', function() {
-          window._voicePermissionGranted = (result.state === 'granted');
-          if (result.state === 'granted') window._voicePermissionWarned = true;
-        });
-      }).catch(function(){});
-    }
-    
-    // Safety: expose editMaterial if not defined
-    if (typeof window.editMaterial !== 'function') {
-      console.warn('editMaterial not found after DOM ready - check logic.js loading');
-    }
-  });
-  </script>
-
-  <!-- Image Preview Modal -->
-  <div id="image-preview-modal" class="modal-overlay" style="z-index: 2147483647; background:rgba(0,0,0,0.85);" onclick="closeModal('image-preview-modal')">
-    <div style="position:relative; width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
-      <button class="btn-close-modal" onclick="closeModal('image-preview-modal')" style="position:absolute; top:20px; right:20px; color:#fff; font-size:24px; background:rgba(0,0,0,0.5); border-radius:50%; width:40px; height:40px; display:flex; justify-content:center; align-items:center; z-index:10; border:none; cursor:pointer;"><i class="fas fa-times"></i></button>
-      <img id="image-preview-full" src="" style="max-width:90%; max-height:90%; object-fit:contain; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-    </div>
-  </div>
-
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

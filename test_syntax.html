@@ -1,0 +1,14 @@
+﻿<!DOCTYPE html>
+<html><body>
+<script>
+window.myLogs = [];
+window.onerror = function(msg, url, line) {
+    window.myLogs.push("ERROR: " + msg + " at line " + line);
+};
+</script>
+<script src="logic.js"></script>
+<script>
+window.myLogs.push("LOGIC_JS_EVALUATED");
+document.write("<div id='result'>" + window.myLogs.join("<br>") + "</div>");
+</script>
+</body></html>

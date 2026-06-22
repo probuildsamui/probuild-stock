@@ -1,0 +1,12 @@
+﻿<!DOCTYPE html>
+<html><body>
+<form onsubmit="test(event)">
+  <button type="submit">Submit</button>
+</form>
+<script>
+function test(e) {
+  e.preventDefault();
+  throw new Error('Test error');
+}
+</script>
+</body></html>

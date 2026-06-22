@@ -1,0 +1,1942 @@
+﻿<script>// logic.js
+// Handles all CRUD operations, Modals, and additional features
+
+document.addEventListener('DOMContentLoaded', () => {
+    bindForms();
+    
+    // Initialize render if not already done by app.js for new modules
+    setTimeout(() => {
+        if(currentView === 'users') renderUsers();
+        if(currentView === 'projects') renderProjects();
+        if(currentView === 'warehouses') renderWarehouses();
+    }, 500);
+});
+
+function bindForms() {
+    bindSearch();
+    // Users
+    const uf = document.getElementById('user-form-el');
+    if (uf) uf.addEventListener('submit', handleUserForm);
+    
+    // Projects
+    const pf = document.getElementById('project-form-el');
+    if (pf) pf.addEventListener('submit', handleProjectForm);
+    
+    // Warehouses
+    const wf = document.getElementById('warehouse-form-el');
+    if (wf) wf.addEventListener('submit', handleWarehouseForm);
+
+    // Materials - Add/Edit
+    const mf = document.getElementById('material-edit-form');
+    if (mf) mf.addEventListener('submit', handleMaterialForm);
+
+    // Tools - Add/Edit
+    const tf = document.getElementById('tool-form');
+    if (tf) tf.addEventListener('submit', handleToolForm);
+
+    // Stock Operations
+    const rmf = document.getElementById('receive-mat-form');
+    if (rmf) rmf.addEventListener('submit', handleReceiveMaterial);
+    
+    const wmf = document.getElementById('withdraw-mat-form');
+    if (wmf) wmf.addEventListener('submit', handleWithdrawMaterial);
+
+    // Tool Operations
+    const btf = document.getElementById('borrow-tool-form');
+    if (btf) btf.addEventListener('submit', handleBorrowTool);
+    
+    const retf = document.getElementById('return-tool-form');
+    if (retf) retf.addEventListener('submit', handleReturnTool);
+    
+    const ttf = document.getElementById('transfer-tool-form');
+    if (ttf) ttf.addEventListener('submit', handleTransferTool);
+    
+    const reptf = document.getElementById('repair-tool-form');
+    if (reptf) reptf.addEventListener('submit', handleRepairTool);
+}
+
+// ========================
+// VOICE SEARCH
+// ========================
+function startVoice(inputId, btnId) {
+    if (!('webkitSpeechRecognition' in window)) {
+        showToast('à¹€à¸šà¸£à¸²à¸§à¹Œà¹€à¸‹à¸­à¸£à¹Œà¸‚à¸­à¸‡à¸„à¸¸à¸“à¹„à¸¡à¹ˆà¸£à¸­à¸‡à¸£à¸±à¸šà¸£à¸°à¸šà¸šà¸ªà¸±à¹ˆà¸‡à¸‡à¸²à¸™à¸”à¹‰à¸§à¸¢à¹€à¸ªà¸µà¸¢à¸‡', 'error');
+        return;
+    }
+    const recognition = new webkitSpeechRecognition();
+    recognition.lang = 'th-TH';
+    recognition.interimResults = false;
+    
+    const btn = document.getElementById(btnId);
+    const originalColor = btn.style.color;
+    btn.style.color = '#ef4444'; // Red to indicate listening
+    showToast('à¸à¸³à¸¥à¸±à¸‡à¸Ÿà¸±à¸‡à¸„à¸³à¸ªà¸±à¹ˆà¸‡à¹€à¸ªà¸µà¸¢à¸‡...', 'info');
+    
+    recognition.onresult = function(event) {
+        const text = event.results[0][0].transcript;
+        const input = document.getElementById(inputId);
+        input.value = text;
+        showToast('à¸£à¸±à¸šà¸„à¸³à¸ªà¸±à¹ˆà¸‡: ' + text, 'success');
+        input.dispatchEvent(new Event('input')); // trigger search if bound
+        btn.style.color = originalColor;
+    };
+    
+    recognition.onerror = function(event) {
+        showToast('à¸‚à¹‰à¸­à¸œà¸´à¸”à¸žà¸¥à¸²à¸”à¹€à¸ªà¸µà¸¢à¸‡: ' + event.error, 'error');
+        btn.style.color = originalColor;
+    };
+    
+    recognition.onend = function() {
+        btn.style.color = originalColor;
+    };
+    
+    recognition.start();
+}
+
+// ========================
+// SEARCH FILTERING
+// ========================
+function bindSearch() {
+    filterList('mat-search', 'materials-table-body', 'tr');
+    filterList('tool-search', 'tools-list-container', '.card');
+    filterList('log-search', 'history-table-body', 'tr');
+}
+
+function filterList(inputId, containerId, itemSelector) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase().trim();
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const items = container.querySelectorAll(itemSelector);
+        items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (text.includes(term)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+}
+
+// ========================
+// ALERTS
+// ========================
+function showCenterAlert(title, message) {
+    const modal = document.getElementById('center-alert-modal');
+    if (modal) {
+        document.getElementById('center-alert-title').textContent = title || 'à¸ªà¸³à¹€à¸£à¹‡à¸ˆ';
+        document.getElementById('center-alert-message').textContent = message || '';
+        openModal('center-alert-modal');
+        setTimeout(() => {
+            closeModal('center-alert-modal');
+        }, 3000);
+    }
+}
+
+// ========================
+// REPORTS
+// ========================
+function generateMonthlyReport() {
+    const projSelect = document.getElementById('report-project-select');
+    if(projSelect && projSelect.value) {
+        document.getElementById('ui-report-meta').textContent = 'à¹‚à¸„à¸£à¸‡à¸à¸²à¸£: ' + projSelect.options[projSelect.selectedIndex].text;
+        document.getElementById('print-report-meta').textContent = 'à¹‚à¸„à¸£à¸‡à¸à¸²à¸£: ' + projSelect.options[projSelect.selectedIndex].text;
+    }
+    
+    const matTbody = document.getElementById('report-materials-tbody');
+    const materials = AppDB.getMaterials();
+    matTbody.innerHTML = '';
+    let totalMatPrice = 0;
+    materials.slice(0, 10).forEach((m, idx) => {
+        let totalQty = Math.floor(Math.random() * 50) + 1; // Mock qty used
+        let lineTotal = totalQty * (m.price_per_unit || 0);
+        totalMatPrice += lineTotal;
+        matTbody.innerHTML += `
+            <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td>${m.name}</td>
+                <td>${m.category}</td>
+                <td style="text-align:center;">${totalQty} ${m.unit}</td>
+                <td style="text-align:right;">${(m.price_per_unit||0).toLocaleString()}</td>
+                <td style="text-align:right;">${lineTotal.toLocaleString()}</td>
+            </tr>
+        `;
+    });
+    
+    const toolTbody = document.getElementById('report-tools-tbody');
+    const tools = AppDB.getTools();
+    toolTbody.innerHTML = '';
+    tools.slice(0, 5).forEach((t, idx) => {
+        toolTbody.innerHTML += `
+            <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td>${t.name}</td>
+                <td>à¸¢à¸·à¸¡à¹ƒà¸Šà¹‰à¸‡à¸²à¸™</td>
+                <td>à¸ªà¸¡à¸Šà¸²à¸¢ à¹ƒà¸ˆà¸”à¸µ</td>
+                <td>${new Date().toLocaleDateString('th-TH')}</td>
+            </tr>
+        `;
+    });
+    
+    document.getElementById('report-summary-value').textContent = totalMatPrice.toLocaleString() + ' à¸šà¸²à¸—';
+    document.getElementById('report-output-container').style.display = 'block';
+}
+
+// ========================
+// USERS CRUD
+// ========================
+function renderUsers() {
+    const tbody = document.getElementById('users-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const users = AppDB.getUsers();
+    users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <div style="font-weight:bold;">${u.name}</div>
+                <div style="font-size:12px; color:var(--text-muted);">${u.username}</div>
+            </td>
+            <td>${getRoleName(u.role)}</td>
+            <td>
+                <span class="status-badge ${u.status === 'active' ? 'status-usable' : 'status-damaged'}">
+                    ${u.status === 'active' ? 'à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¸›à¸à¸•à¸´' : 'à¸£à¸°à¸‡à¸±à¸šà¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-outline btn-sm" onclick="editUser('${u.id}')"><i class="fas fa-edit"></i> à¹à¸à¹‰à¹„à¸‚</button>
+                <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteUser('${u.id}')"><i class="fas fa-trash"></i> à¸¥à¸š</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openAddUserModal() {
+    document.getElementById('user-form-el').reset();
+    document.getElementById('user-form-id').value = '';
+    document.getElementById('user-modal-title').textContent = 'à¹€à¸žà¸´à¹ˆà¸¡à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¹ƒà¸«à¸¡à¹ˆ';
+    openModal('user-modal');
+}
+
+function editUser(id) {
+    const user = AppDB.getUsers().find(u => u.id === id);
+    if (!user) return;
+    document.getElementById('user-form-id').value = user.id;
+    document.getElementById('user-name').value = user.name;
+    document.getElementById('user-username').value = user.username;
+    document.getElementById('user-password').value = user.password;
+    document.getElementById('user-role').value = user.role;
+    document.getElementById('user-status').value = user.status;
+    document.getElementById('user-modal-title').textContent = 'à¹à¸à¹‰à¹„à¸‚à¸žà¸™à¸±à¸à¸‡à¸²à¸™';
+    openModal('user-modal');
+}
+
+function deleteUser(id) {
+    if (confirm('à¸„à¸¸à¸“à¹à¸™à¹ˆà¹ƒà¸ˆà¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆà¸§à¹ˆà¸²à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸¥à¸šà¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸™à¸µà¹‰?')) {
+        let users = AppDB.getUsers();
+        users = users.filter(u => u.id !== id);
+        saveToDB('Users', users);
+        renderUsers();
+        showToast('à¸¥à¸šà¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+    }
+}
+
+function handleUserForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('user-form-id').value;
+    const users = AppDB.getUsers();
+    
+    const newUser = {
+        id: id || 'u' + Date.now(),
+        name: document.getElementById('user-name').value,
+        username: document.getElementById('user-username').value,
+        password: document.getElementById('user-password').value,
+        role: document.getElementById('user-role').value,
+        status: document.getElementById('user-status').value
+    };
+    
+    if (id) {
+        const idx = users.findIndex(u => u.id === id);
+        if (idx !== -1) users[idx] = newUser;
+    } else {
+        users.push(newUser);
+    }
+    
+    saveToDB('Users', users);
+    closeModal('user-modal');
+    renderUsers();
+    showToast('à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+}
+
+// ========================
+// PROJECTS CRUD
+// ========================
+function renderProjects() {
+    const tbody = document.getElementById('projects-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const projects = AppDB.getProjects ? AppDB.getProjects() : [];
+    projects.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${p.name}</strong></td>
+            <td>${p.desc || '-'}</td>
+            <td><span class="status-badge status-usable">à¸à¸³à¸¥à¸±à¸‡à¸”à¸³à¹€à¸™à¸´à¸™à¸à¸²à¸£</span></td>
+            <td>
+                <button class="btn btn-outline btn-sm" onclick="editProject('${p.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteProject('${p.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openAddProjectModal() {
+    const pf = document.getElementById('project-form-el');
+    if (pf) pf.reset();
+    document.getElementById('project-form-id').value = '';
+    document.getElementById('project-modal-title').textContent = 'à¹€à¸žà¸´à¹ˆà¸¡à¹‚à¸„à¸£à¸‡à¸à¸²à¸£à¹ƒà¸«à¸¡à¹ˆ';
+    openModal('project-modal');
+}
+
+function editProject(id) {
+    const prj = AppDB.getProjects().find(p => p.id === id);
+    if (!prj) return;
+    document.getElementById('project-form-id').value = prj.id;
+    document.getElementById('project-name').value = prj.name;
+    document.getElementById('project-desc').value = prj.desc || '';
+    document.getElementById('project-modal-title').textContent = 'à¹à¸à¹‰à¹„à¸‚à¹‚à¸„à¸£à¸‡à¸à¸²à¸£';
+    openModal('project-modal');
+}
+
+function deleteProject(id) {
+    if (confirm('à¸¢à¸·à¸™à¸¢à¸±à¸™à¸à¸²à¸£à¸¥à¸šà¹‚à¸„à¸£à¸‡à¸à¸²à¸£?')) {
+        let prjs = AppDB.getProjects();
+        prjs = prjs.filter(p => p.id !== id);
+        saveToDB('Projects', prjs);
+        renderProjects();
+        showToast('à¸¥à¸šà¹‚à¸„à¸£à¸‡à¸à¸²à¸£à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+    }
+}
+
+function handleProjectForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('project-form-id').value;
+    const prjs = AppDB.getProjects ? AppDB.getProjects() : [];
+    
+    const newPrj = {
+        id: id || 'p' + Date.now(),
+        name: document.getElementById('project-name').value,
+        desc: document.getElementById('project-desc').value
+    };
+    
+    if (id) {
+        const idx = prjs.findIndex(p => p.id === id);
+        if (idx !== -1) prjs[idx] = newPrj;
+    } else {
+        prjs.push(newPrj);
+    }
+    
+    saveToDB('Projects', prjs);
+    closeModal('project-modal');
+    renderProjects();
+    showToast('à¸šà¸±à¸™à¸—à¸¶à¸à¹‚à¸„à¸£à¸‡à¸à¸²à¸£à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+}
+
+// ========================
+// WAREHOUSES CRUD
+// ========================
+function renderWarehouses() {
+    const tbody = document.getElementById('warehouses-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const whs = AppDB.getWarehouses ? AppDB.getWarehouses() : [];
+    whs.forEach(w => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${w.name}</strong></td>
+            <td><span class="status-badge status-usable">à¸›à¸à¸•à¸´</span></td>
+            <td>
+                <button class="btn btn-outline btn-sm" onclick="editWarehouse('${w.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteWarehouse('${w.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openAddWarehouseModal() {
+    const wf = document.getElementById('warehouse-form-el');
+    if (wf) wf.reset();
+    document.getElementById('warehouse-form-id').value = '';
+    document.getElementById('warehouse-modal-title').textContent = 'à¹€à¸žà¸´à¹ˆà¸¡à¸„à¸¥à¸±à¸‡à¸¢à¹ˆà¸­à¸¢à¹ƒà¸«à¸¡à¹ˆ';
+    openModal('warehouse-modal');
+}
+
+function editWarehouse(id) {
+    const wh = AppDB.getWarehouses().find(w => w.id === id);
+    if (!wh) return;
+    document.getElementById('warehouse-form-id').value = wh.id;
+    document.getElementById('warehouse-name').value = wh.name;
+    document.getElementById('warehouse-modal-title').textContent = 'à¹à¸à¹‰à¹„à¸‚à¸„à¸¥à¸±à¸‡à¸¢à¹ˆà¸­à¸¢';
+    openModal('warehouse-modal');
+}
+
+function deleteWarehouse(id) {
+    if (confirm('à¸¢à¸·à¸™à¸¢à¸±à¸™à¸à¸²à¸£à¸¥à¸šà¸„à¸¥à¸±à¸‡à¸§à¸±à¸ªà¸”à¸¸?')) {
+        let whs = AppDB.getWarehouses();
+        whs = whs.filter(w => w.id !== id);
+        saveToDB('Warehouses', whs);
+        renderWarehouses();
+        showToast('à¸¥à¸šà¸„à¸¥à¸±à¸‡à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+    }
+}
+
+function handleWarehouseForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('warehouse-form-id').value;
+    const whs = AppDB.getWarehouses ? AppDB.getWarehouses() : [];
+    
+    const newWh = {
+        id: id || 'w' + Date.now(),
+        name: document.getElementById('warehouse-name').value
+    };
+    
+    if (id) {
+        const idx = whs.findIndex(w => w.id === id);
+        if (idx !== -1) whs[idx] = newWh;
+    } else {
+        whs.push(newWh);
+    }
+    
+    saveToDB('Warehouses', whs);
+    closeModal('warehouse-modal');
+    renderWarehouses();
+    showToast('à¸šà¸±à¸™à¸—à¸¶à¸à¸„à¸¥à¸±à¸‡à¸§à¸±à¸ªà¸”à¸¸à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+}
+
+// ========================
+// MATERIALS LOGIC
+// ========================
+function openAddMaterialModal() {
+    document.getElementById('mat-form-id').value = '';
+    const mf = document.getElementById('material-edit-form');
+    if(mf) mf.reset();
+    document.getElementById('material-modal-title').textContent = 'à¹€à¸žà¸´à¹ˆà¸¡à¸§à¸±à¸ªà¸”à¸¸à¸ªà¸´à¸™à¸„à¹‰à¸²à¹ƒà¸«à¸¡à¹ˆ';
+    openModal('material-add-modal');
+}
+
+window.editMaterial = function(id) {
+    const m = AppDB.getMaterials().find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('mat-form-id').value = m.id;
+    document.getElementById('mat-name').value = m.name;
+    document.getElementById('mat-code').value = m.code || '';
+    document.getElementById('mat-category').value = m.category;
+    document.getElementById('mat-unit').value = m.unit;
+    document.getElementById('mat-min-stock').value = m.min_stock;
+    document.getElementById('mat-price').value = m.price_per_unit || 0;
+    document.getElementById('mat-image-url').value = m.images?.[0] || '';
+    document.getElementById('material-modal-title').textContent = 'à¹à¸à¹‰à¹„à¸‚à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸§à¸±à¸ªà¸”à¸¸';
+    openModal('material-add-modal');
+};
+
+function handleMaterialForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('mat-form-id').value;
+    const mats = AppDB.getMaterials();
+    
+    const newMat = {
+        id: id || 'm' + Date.now(),
+        name: document.getElementById('mat-name').value,
+        code: document.getElementById('mat-code').value,
+        category: document.getElementById('mat-category').value,
+        unit: document.getElementById('mat-unit').value,
+        min_stock: parseInt(document.getElementById('mat-min-stock').value) || 0,
+        price_per_unit: parseFloat(document.getElementById('mat-price').value) || 0,
+        stock_a_qty: 0,
+        stock_b_qty: 0,
+        stock_c_qty: 0,
+        images: [document.getElementById('mat-image-url').value || AppDB.MOCK_IMAGES.material]
+    };
+    
+    if (id) {
+        const idx = mats.findIndex(m => m.id === id);
+        if (idx !== -1) {
+            newMat.stock_a_qty = mats[idx].stock_a_qty;
+            newMat.stock_b_qty = mats[idx].stock_b_qty;
+            newMat.stock_c_qty = mats[idx].stock_c_qty;
+            mats[idx] = newMat;
+        }
+    } else {
+        mats.push(newMat);
+    }
+    
+    saveToDB('Materials', mats);
+    closeModal('material-edit-modal');
+    renderMaterials();
+    showToast('à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸§à¸±à¸ªà¸”à¸¸à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+}
+
+function handleReceiveMaterial(e) {
+    e.preventDefault();
+    const id = document.getElementById('receive-mat-id').value;
+    const qty = parseInt(document.getElementById('receive-qty').value) || 0;
+    const mats = AppDB.getMaterials();
+    const m = mats.find(x => x.id === id);
+    if(m) {
+        m.stock_a_qty = (m.stock_a_qty || 0) + qty; // default to Stock A
+        saveToDB('Materials', mats);
+        logMaterialAction(m.name, 'receive', qty, 'à¸£à¸±à¸šà¹€à¸‚à¹‰à¸²à¸„à¸¥à¸±à¸‡à¸«à¸¥à¸±à¸', currentUser?.name);
+        closeModal('receive-material-modal');
+        renderMaterials();
+        showToast(`à¸£à¸±à¸šà¹€à¸‚à¹‰à¸²à¸§à¸±à¸ªà¸”à¸¸ ${m.name} à¸ˆà¸³à¸™à¸§à¸™ ${qty} à¸ªà¸³à¹€à¸£à¹‡à¸ˆ`, 'success');
+    }
+}
+
+function handleWithdrawMaterial(e) {
+    e.preventDefault();
+    const id = document.getElementById('withdraw-mat-id').value;
+    const qty = parseInt(document.getElementById('withdraw-qty').value) || 0;
+    const proj = document.getElementById('withdraw-project').value;
+    const mats = AppDB.getMaterials();
+    const m = mats.find(x => x.id === id);
+    if(m) {
+        if((m.stock_a_qty || 0) + (m.stock_b_qty || 0) + (m.stock_c_qty || 0) < qty) {
+            showToast('à¸ªà¸•à¹‡à¸­à¸à¹„à¸¡à¹ˆà¹€à¸žà¸µà¸¢à¸‡à¸žà¸­', 'error');
+            return;
+        }
+        // simplistic logic: deduct from Stock A
+        m.stock_a_qty = Math.max(0, (m.stock_a_qty || 0) - qty);
+        saveToDB('Materials', mats);
+        logMaterialAction(m.name, 'withdraw', qty, proj, currentUser?.name);
+        closeModal('withdraw-material-modal');
+        renderMaterials();
+        showToast(`à¹€à¸šà¸´à¸à¸§à¸±à¸ªà¸”à¸¸ ${m.name} à¸ˆà¸³à¸™à¸§à¸™ ${qty} à¸ªà¸³à¹€à¸£à¹‡à¸ˆ`, 'success');
+    }
+}
+
+function logMaterialAction(name, action, qty, proj, user) {
+    const logs = AppDB.getMaterialLogs() || [];
+    logs.push({
+        id: 'mlog' + Date.now(),
+        timestamp: new Date().toISOString(),
+        material_name: name,
+        action: action,
+        qty: qty,
+        project: proj,
+        borrower_name: user,
+        approver_name: user
+    });
+    saveToDB('MaterialLogs', logs);
+}
+
+// ========================
+// TOOLS LOGIC
+// ========================
+function handleToolForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('tool-form-id').value;
+    const tools = AppDB.getTools();
+    
+    const newTool = {
+        id: id || 't' + Date.now(),
+        name: document.getElementById('tool-name').value,
+        serial_number: document.getElementById('tool-serial').value,
+        category: document.getElementById('tool-category').value,
+        status: (document.getElementById('tool-status') && document.getElementById('tool-status').value) || 'usable',
+        current_project: 'à¸„à¸¥à¸±à¸‡à¸ªà¸´à¸™à¸„à¹‰à¸²à¸à¸¥à¸²à¸‡',
+        price: parseFloat(document.getElementById('tool-price').value) || 0,
+        warranty_expiry: document.getElementById('tool-warranty').value || null,
+        images: [document.getElementById('tool-image-url').value || AppDB.MOCK_IMAGES.drill]
+    };
+    
+    if (id) {
+        const idx = tools.findIndex(t => t.id === id);
+        if (idx !== -1) {
+            newTool.current_project = tools[idx].current_project; // preserve project
+            tools[idx] = newTool;
+        }
+    } else {
+        tools.push(newTool);
+    }
+    
+        // --- NEW APPROVAL LOGIC ---
+    AppDB.addApproval({
+        type: 'tool',
+        action: isNew ? 'add' : 'edit',
+        data: t,
+        requested_by: (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown')
+    });
+    
+    AppDB.notifyTelegram('🔔 <b>มีรายการขออนุมัติใหม่</b>\nประเภท: <b>' + (isNew ? 'เพิ่มเครื่องมือใหม่' : 'แก้ไขข้อมูลเครื่องมือ') + '</b>\nรายการ: ' + t.name + '\nผู้ขอ: ' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown'));
+
+    if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+    
+    closeModal('tool-form-modal');
+    
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            html: '<div style="font-size:24px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i> บันทึกข้อมูลเครื่องมือสำเร็จ</div>' +
+                  '<div style="font-size:18px;">' + t.name + '</div>' +
+                  '<div style="color:#ef4444; font-weight:bold; margin-top:20px; padding:10px; background:#fee2e2; border-radius:8px; display:inline-block;">สถานะรออนุมัติ</div>',
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#3b82f6',
+            width: '400px'
+        });
+    } else {
+        showToast('บันทึกข้อมูลและส่งรออนุมัติสำเร็จ', 'success');
+    }
+    showToast('à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'success');
+}
+
+function handleBorrowTool(e) {
+    e.preventDefault();
+    const tools = AppDB.getTools();
+    const id = document.getElementById('borrow-tool-id').value;
+    const proj = document.getElementById('borrow-tool-project').value;
+    const user = document.getElementById('borrow-tool-borrower').value;
+    
+    const t = tools.find(x => x.id === id);
+    if(t) {
+        t.current_project = proj;
+        t.current_borrower = user;
+        t.status = 'in-use';
+        saveToolsArray(tools);
+        logToolAction(t.name, 'borrow', proj, user);
+        closeModal('borrow-tool-modal');
+        renderTools();
+        showCenterAlert('à¸¢à¸·à¸¡à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', `à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­ ${t.name} à¸–à¸¹à¸à¸¢à¸·à¸¡à¸ªà¸³à¹€à¸£à¹‡à¸ˆà¹‚à¸”à¸¢ ${user}`);
+    }
+}
+
+function handleReturnTool(e) {
+    e.preventDefault();
+    const tools = AppDB.getTools();
+    const id = document.getElementById('return-tool-id').value;
+    const condition = document.getElementById('return-tool-condition').value;
+    const returner = document.getElementById('return-tool-borrower').value;
+    const location = document.getElementById('return-tool-location').value;
+    const auth = document.getElementById('return-tool-auth').value;
+    
+    // Get signature data
+    let signatureData = null;
+    if (typeof sigCanvas !== 'undefined' && sigCanvas) {
+        signatureData = sigCanvas.toDataURL('image/png');
+    }
+    
+    const t = tools.find(x => x.id === id);
+    if(t) {
+        t.current_project = location;
+        t.current_borrower = null;
+        t.status = condition === 'damaged' ? 'damaged' : 'ready';
+        saveToolsArray(tools);
+        logToolAction(t.name, 'return', location, returner);
+        // We could also log signatureData if needed, but for now we just process the return
+        closeModal('return-tool-modal');
+        renderTools();
+        showCenterAlert('à¸„à¸·à¸™à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', `à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­ ${t.name} à¸–à¸¹à¸à¸„à¸·à¸™à¸ªà¸³à¹€à¸£à¹‡à¸ˆà¹‚à¸”à¸¢ ${returner} à¸ˆà¸±à¸”à¹€à¸à¹‡à¸šà¸—à¸µà¹ˆ ${location}`);
+    }
+}
+
+window.openToolTransferModal = function(toolId = '') {
+    document.getElementById('trans-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('trans-tool-name').textContent = t.name;
+        document.getElementById('trans-tool-from').textContent = t.current_project;
+    }
+    
+    // Populate select destination projects
+    const selectTo = document.getElementById('trans-tool-to');
+    if (selectTo) {
+        selectTo.innerHTML = '<option value="" disabled selected>-- à¹€à¸¥à¸·à¸­à¸à¹‚à¸„à¸£à¸‡à¸à¸²à¸£ --</option>';
+        const prjs = AppDB.getProjects ? AppDB.getProjects() : [];
+        prjs.forEach(p => {
+            selectTo.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+        });
+    }
+
+    // Populate mover (users)
+    const selectBorrower = document.getElementById('trans-tool-borrower');
+    if (selectBorrower) {
+        selectBorrower.innerHTML = '<option value="" disabled selected>-- à¹€à¸¥à¸·à¸­à¸à¸œà¸¹à¹‰à¸¢à¹‰à¸²à¸¢à¸‚à¸­à¸‡ --</option>';
+        const users = AppDB.getUsers();
+        users.forEach(u => {
+            selectBorrower.innerHTML += `<option value="${u.name}">${u.name}</option>`;
+        });
+    }
+    
+    openModal('transfer-tool-modal');
+};
+
+window.openToolRepairModal = function(toolId = '') {
+    document.getElementById('repair-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('repair-tool-name').textContent = t.name;
+        document.getElementById('repair-tool-sn').textContent = t.serial_number || '-';
+        
+        // Handle Retire / Restore button state
+        const btnRetire = document.getElementById('btn-retire-tool');
+        if (btnRetire) {
+            if (t.status === 'retired') {
+                btnRetire.innerHTML = '<i class="fas fa-undo"></i> à¸™à¸³à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰à¹ƒà¸«à¸¡à¹ˆ';
+                btnRetire.className = 'btn btn-success';
+                btnRetire.onclick = function() { triggerRestoreTool(toolId); };
+            } else {
+                btnRetire.innerHTML = '<i class="fas fa-trash-alt"></i> à¸¢à¸¸à¸•à¸´à¸à¸²à¸£à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸™à¸µà¹‰';
+                btnRetire.className = 'btn btn-danger';
+                btnRetire.onclick = function() { triggerRetireTool(toolId); };
+            }
+        }
+    }
+    const reporterInput = document.getElementById('repair-reporter');
+    if (reporterInput) {
+        reporterInput.value = currentUser?.name || 'Admin';
+    }
+    openModal('repair-tool-modal');
+};
+
+window.triggerRetireTool = function(toolId) {
+    if (confirm('คุณแน่ใจหรือไม่ว่าจะต้องการส่งเรื่อง \"ยุติการใช้งาน\" เครื่องมือนี้ (เช่น พังถาวร หรือ สูญหาย) เพื่อรออนุมัติ?')) {
+        const tools = AppDB.getTools();
+        const t = tools.find(x => x.id === toolId);
+        if (t) {
+            // --- NEW APPROVAL LOGIC ---
+            AppDB.addApproval({
+                type: 'tool',
+                action: 'retire',
+                data: { id: t.id, name: t.name, notes: (document.getElementById('repair-reporter') && document.getElementById('repair-reporter').value) || '' },
+                requested_by: (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown')
+            });
+            
+            AppDB.notifyTelegram('🔔 <b>มีรายการขออนุมัติใหม่</b>\nประเภท: <b>ขอยุติการใช้งานเครื่องมือ</b>\nรายการ: ' + t.name + '\nผู้ขอ: ' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown'));
+
+            if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    html: '<div style="font-size:20px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i> ส่งคำขอสำเร็จ</div>' +
+                          '<div style="font-size:16px;">ขอยุติการใช้งาน: ' + t.name + '</div>' +
+                          '<div style="color:#ef4444; font-weight:bold; margin-top:15px; padding:8px; background:#fee2e2; border-radius:8px;">สถานะรออนุมัติ</div>',
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#3b82f6'
+                });
+            } else {
+                showToast('ส่งคำขอยุติการใช้งานแล้ว สถานะรออนุมัติ', 'success');
+            }
+            closeModal('repair-tool-modal');
+        }
+    }
+};
+
+window.triggerRestoreTool = function(toolId) {
+    if (confirm('à¸™à¸³à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸™à¸µà¹‰à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹ƒà¸«à¸¡à¹ˆ à¹ƒà¸Šà¹ˆà¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆ?')) {
+        const tools = AppDB.getTools();
+        const t = tools.find(x => x.id === toolId);
+        if (t) {
+            t.status = 'ready';
+            saveToolsArray(tools);
+            showCenterAlert('à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', `à¸™à¸³ ${t.name} à¸à¸¥à¸±à¸šà¸¡à¸²à¹ƒà¸Šà¹‰à¸‡à¸²à¸™à¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢`);
+            closeModal('repair-tool-modal');
+            renderTools();
+        }
+    }
+};
+
+function handleTransferTool(e) {
+    e.preventDefault();
+    const id = document.getElementById('trans-tool-id').value;
+    const toProj = document.getElementById('trans-tool-to').value;
+    const borrower = document.getElementById('trans-tool-borrower').value;
+    const tools = AppDB.getTools();
+    const t = tools.find(x => x.id === id);
+    if(t) {
+        t.current_project = toProj;
+        saveToolsArray(tools);
+        logToolAction(t.name, 'transfer', toProj, borrower);
+        closeModal('transfer-tool-modal');
+        renderTools();
+        showToast(`à¹‚à¸¢à¸à¸¢à¹‰à¸²à¸¢à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­ ${t.name} à¸ªà¸³à¹€à¸£à¹‡à¸ˆ`, 'success');
+    }
+}
+        showCenterAlert('คืนเครื่องมือสำเร็จ', `เครื่องมือ ${t.name} ถูกคืนสำเร็จโดย ${returner} จัดเก็บที่ ${location}`);
+    }
+}
+
+window.openToolTransferModal = function(toolId = '') {
+    document.getElementById('trans-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('trans-tool-name').textContent = t.name;
+        document.getElementById('trans-tool-from').textContent = t.current_project;
+    }
+    
+    // Populate select destination projects
+    const selectTo = document.getElementById('trans-tool-to');
+    if (selectTo) {
+        selectTo.innerHTML = '<option value="" disabled selected>-- เลือกโครงการ --</option>';
+        const prjs = AppDB.getProjects ? AppDB.getProjects() : [];
+        prjs.forEach(p => {
+            selectTo.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+        });
+    }
+
+    // Populate mover (users)
+    const selectBorrower = document.getElementById('trans-tool-borrower');
+    if (selectBorrower) {
+        selectBorrower.innerHTML = '<option value="" disabled selected>-- เลือกผู้ย้ายของ --</option>';
+        const users = AppDB.getUsers();
+        users.forEach(u => {
+            selectBorrower.innerHTML += `<option value="${u.name}">${u.name}</option>`;
+        });
+    }
+    
+    openModal('transfer-tool-modal');
+};
+
+window.openToolRepairModal = function(toolId = '') {
+    document.getElementById('repair-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('repair-tool-name').textContent = t.name;
+        document.getElementById('repair-tool-sn').textContent = t.serial_number || '-';
+        
+        // Handle Retire / Restore button state
+        const btnRetire = document.getElementById('btn-retire-tool');
+        if (btnRetire) {
+            if (t.status === 'retired') {
+                btnRetire.innerHTML = '<i class="fas fa-undo"></i> นำกลับมาใช้ใหม่';
+                btnRetire.className = 'btn btn-success';
+                btnRetire.onclick = function() { triggerRestoreTool(toolId); };
+            } else {
+                btnRetire.innerHTML = '<i class="fas fa-trash-alt"></i> ยุติการใช้งานเครื่องมือนี้';
+                btnRetire.className = 'btn btn-danger';
+                btnRetire.onclick = function() { triggerRetireTool(toolId); };
+            }
+        }
+    }
+    const reporterInput = document.getElementById('repair-reporter');
+    if (reporterInput) {
+        reporterInput.value = currentUser?.name || 'Admin';
+    }
+    openModal('repair-tool-modal');
+};
+
+window.triggerRetireTool = function(toolId) {
+    if (confirm('คุณแน่ใจหรือไม่ว่าจะต้องการส่งเรื่อง \"ยุติการใช้งาน\" เครื่องมือนี้ (เช่น พังถาวร หรือ สูญหาย) เพื่อรออนุมัติ?')) {
+        const tools = AppDB.getTools();
+        const t = tools.find(x => x.id === toolId);
+        if (t) {
+            // --- NEW APPROVAL LOGIC ---
+            AppDB.addApproval({
+                type: 'tool',
+                action: 'retire',
+                data: { id: t.id, name: t.name, notes: (document.getElementById('repair-reporter') && document.getElementById('repair-reporter').value) || '' },
+                requested_by: (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown')
+            });
+            
+            AppDB.notifyTelegram('🔔 <b>มีรายการขออนุมัติใหม่</b>\nประเภท: <b>ขอยุติการใช้งานเครื่องมือ</b>\nรายการ: ' + t.name + '\nผู้ขอ: ' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown'));
+
+            if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    html: '<div style="font-size:20px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i> ส่งคำขอสำเร็จ</div>' +
+                          '<div style="font-size:16px;">ขอยุติการใช้งาน: ' + t.name + '</div>' +
+                          '<div style="color:#ef4444; font-weight:bold; margin-top:15px; padding:8px; background:#fee2e2; border-radius:8px;">สถานะรออนุมัติ</div>',
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#3b82f6'
+                });
+            } else {
+                showToast('ส่งคำขอยุติการใช้งานแล้ว สถานะรออนุมัติ', 'success');
+            }
+            closeModal('repair-tool-modal');
+        }
+    }
+};
+
+window.triggerRestoreTool = function(toolId) {
+    if (confirm('นำเครื่องมือนี้กลับมาใช้งานใหม่ ใช่หรือไม่?')) {
+        const tools = AppDB.getTools();
+        const t = tools.find(x => x.id === toolId);
+        if (t) {
+            t.status = 'ready';
+            saveToolsArray(tools);
+            showCenterAlert('สำเร็จ', `นำ ${t.name} กลับมาใช้งานเรียบร้อย`);
+            closeModal('repair-tool-modal');
+            renderTools();
+        }
+    }
+};
+
+function handleTransferTool(e) {
+    e.preventDefault();
+    const id = document.getElementById('trans-tool-id').value;
+    const toProj = document.getElementById('trans-tool-to').value;
+    const borrower = document.getElementById('trans-tool-borrower').value;
+    const tools = AppDB.getTools();
+    const t = tools.find(x => x.id === id);
+    if(t) {
+        t.current_project = toProj;
+        saveToolsArray(tools);
+        logToolAction(t.name, 'transfer', toProj, borrower);
+        closeModal('transfer-tool-modal');
+        renderTools();
+        showToast(`โยกย้ายเครื่องมือ ${t.name} สำเร็จ`, 'success');
+    }
+}
+
+function handleRepairTool(e) {
+    e.preventDefault();
+    const id = document.getElementById('repair-tool-id').value;
+    const tools = AppDB.getTools();
+    const t = tools.find(x => x.id === id);
+    if(t) {
+        t.status = 'damaged';
+        saveToolsArray(tools);
+        closeModal('repair-tool-modal');
+        renderTools();
+        showCenterAlert('สำเร็จ', `แจ้งซ่อม ${t.name} เรียบร้อย`);
+    }
+}
+
+// Export edit for tool buttons
+window.editTool = function(id) {
+    const t = AppDB.getTools().find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('tool-form-id').value = t.id;
+    document.getElementById('tool-name').value = t.name;
+    document.getElementById('tool-serial').value = t.serial_number;
+    document.getElementById('tool-category').value = t.category;
+    if (document.getElementById('tool-status')) document.getElementById('tool-status').value = t.status;
+    document.getElementById('tool-price').value = t.price || 0;
+    
+    window.currentToolImages = t.images ? [...t.images] : [];
+    renderToolImagePreviews();
+    
+    document.getElementById('tool-modal-title').textContent = 'แก้ไขข้อมูลเครื่องมือช่าง';
+    openModal('tool-form-modal');
+};
+
+// Global Array for Tool Images Upload
+window.currentToolImages = [];
+
+    
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            window.currentToolImages.push(e.target.result);
+            renderToolImagePreviews();
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
+function renderToolImagePreviews() {
+    const container = document.getElementById('tool-images-preview');
+    if (!container) return;
+    container.innerHTML = '';
+    window.currentToolImages.forEach((imgSrc, idx) => {
+        const div = document.createElement('div');
+        div.style.position = 'relative';
+        div.style.width = '80px';
+        div.style.height = '80px';
+        div.style.border = '1px solid #ddd';
+        div.style.borderRadius = '4px';
+        div.style.overflow = 'hidden';
+        div.style.cursor = 'grab';
+        div.draggable = true;
+        div.dataset.index = idx;
+        
+        div.ondragstart = function(e) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', idx);
+            setTimeout(() => this.style.opacity = '0.5', 0);
+        };
+        div.ondragend = function() {
+            this.style.opacity = '1';
+        };
+        div.ondragover = function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.style.border = '2px dashed var(--accent)';
+        };
+        div.ondragleave = function() {
+            this.style.border = '1px solid #ddd';
+        };
+        div.ondrop = function(e) {
+            e.preventDefault();
+            this.style.border = '1px solid #ddd';
+            var dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            var dropIdx = parseInt(this.dataset.index, 10);
+            if (!isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
+                var draggedItem = window.currentToolImages[dragIdx];
+                window.currentToolImages.splice(dragIdx, 1);
+                window.currentToolImages.splice(dropIdx, 0, draggedItem);
+                renderToolImagePreviews();
+            }
+        };
+        
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.pointerEvents = 'none';
+        
+        const removeBtn = document.createElement('div');
+        removeBtn.innerHTML = '&times;';
+        removeBtn.style.position = 'absolute';
+        removeBtn.style.top = '0';
+        removeBtn.style.right = '0';
+        removeBtn.style.background = 'rgba(255,0,0,0.7)';
+        removeBtn.style.color = 'white';
+        removeBtn.style.width = '20px';
+        removeBtn.style.height = '20px';
+        removeBtn.style.lineHeight = '20px';
+        removeBtn.style.textAlign = 'center';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.zIndex = '10';
+        removeBtn.onclick = function(evt) {
+            evt.stopPropagation();
+            window.currentToolImages.splice(idx, 1);
+            renderToolImagePreviews();
+        };
+        
+        div.appendChild(img);
+        div.appendChild(removeBtn);
+        container.appendChild(div);
+    });
+}
+
+// Overwrite handleSaveTool
+window.handleSaveTool = function(e) {
+    e.preventDefault();
+    const id = document.getElementById('tool-form-id').value;
+    const tools = AppDB.getTools();
+    
+    let isNew = false;
+    let t = tools.find(x => x.id === id);
+    if(!t) {
+        isNew = true;
+        t = {
+            id: 't' + Date.now(),
+            current_project: 'à¸„à¸¥à¸±à¸‡à¸ªà¸´à¸™à¸„à¹‰à¸²à¸à¸¥à¸²à¸‡'
+        };
+        tools.push(t);
+    }
+    
+    t.name = document.getElementById('tool-name').value;
+    t.serial_number = document.getElementById('tool-serial').value;
+    t.category = document.getElementById('tool-category').value;
+    t.status = (document.getElementById('tool-status') && document.getElementById('tool-status').value) || (t.status || 'usable');
+    t.price = parseFloat(document.getElementById('tool-price').value) || 0;
+    
+    // Save images from our global array
+    t.images = window.currentToolImages.length > 0 ? [...window.currentToolImages] : (t.images || [AppDB.MOCK_IMAGES.tool]);
+    
+        // --- NEW APPROVAL LOGIC ---
+    AppDB.addApproval({
+        type: 'tool',
+        action: isNew ? 'add' : 'edit',
+        data: t,
+        requested_by: (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown')
+    });
+    
+    AppDB.notifyTelegram('🔔 <b>มีรายการขออนุมัติใหม่</b>\nประเภท: <b>' + (isNew ? 'เพิ่มเครื่องมือใหม่' : 'แก้ไขข้อมูลเครื่องมือ') + '</b>\nรายการ: ' + t.name + '\nผู้ขอ: ' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown'));
+
+    if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+    
+    closeModal('tool-form-modal');
+    
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            html: '<div style="font-size:24px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i> บันทึกข้อมูลเครื่องมือสำเร็จ</div>' +
+                  '<div style="font-size:18px;">' + t.name + '</div>' +
+                  '<div style="color:#ef4444; font-weight:bold; margin-top:20px; padding:10px; background:#fee2e2; border-radius:8px; display:inline-block;">สถานะรออนุมัติ</div>',
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#3b82f6',
+            width: '400px'
+        });
+    } else {
+        showToast('บันทึกข้อมูลและส่งรออนุมัติสำเร็จ', 'success');
+    }
+    
+    // Reset global array
+    window.currentToolImages = [];
+    renderToolImagePreviews();
+    
+    showToast(isNew ? 'à¹€à¸žà¸´à¹ˆà¸¡à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¹ƒà¸«à¸¡à¹ˆà¹à¸¥à¹‰à¸§' : 'à¸­à¸±à¸›à¹€à¸”à¸•à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¹à¸¥à¹‰à¸§', 'success');
+};
+
+// View Details
+window.viewToolDetails = function(id) {
+    const t = AppDB.getTools().find(x => x.id === id);
+    if (!t) return;
+    
+    document.getElementById('detail-tool-name').textContent = t.name;
+    document.getElementById('detail-tool-sn').textContent = t.serial_number || '-';
+    document.getElementById('detail-tool-price').textContent = t.price ? t.price.toLocaleString() + ' à¸šà¸²à¸—' : '-';
+    
+    document.getElementById('detail-tool-warranty').textContent = 'à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­à¸Šà¹ˆà¸²à¸‡à¹ƒà¸™à¸£à¸°à¸šà¸š';
+    document.getElementById('detail-tool-store').textContent = t.current_project || 'à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸';
+    document.getElementById('detail-tool-purchased').textContent = t.current_borrower || 'à¹„à¸¡à¹ˆà¸¡à¸µà¸œà¸¹à¹‰à¸¢à¸·à¸¡';
+    
+    const gallery = document.getElementById('detail-tool-gallery');
+    gallery.innerHTML = '';
+    const images = t.images && t.images.length > 0 ? t.images : [AppDB.MOCK_IMAGES.tool];
+    
+    images.forEach(imgSrc => {
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.width = '120px';
+        img.style.height = '120px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '6px';
+        img.style.border = '1px solid var(--border-color)';
+        gallery.appendChild(img);
+    });
+    
+    document.getElementById('tool-details-modal').dataset.toolId = id;
+    openModal('tool-details-modal');
+};
+
+let currentEditImages = [];
+window.openEditToolImagesModal = function() {
+    const toolId = document.getElementById('tool-details-modal').dataset.toolId;
+    if (!toolId) return;
+    const tools = AppDB.getTools();
+    const t = tools.find(x => x.id === toolId);
+    if (!t) return;
+    
+    document.getElementById('edit-image-tool-id').value = toolId;
+    currentEditImages = t.images && t.images.length > 0 ? [...t.images] : [AppDB.MOCK_IMAGES.tool];
+    
+    renderEditToolImages();
+    openModal('tool-image-edit-modal');
+};
+
+function renderEditToolImages() {
+    const preview = document.getElementById('edit-tool-images-preview');
+    preview.innerHTML = '';
+    currentEditImages.forEach((imgSrc, idx) => {
+        const div = document.createElement('div');
+        div.style.position = 'relative';
+        div.style.width = '80px';
+        div.style.height = '80px';
+        div.innerHTML = `
+            <img src="${imgSrc}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;">
+            <button type="button" onclick="removeEditToolImage(${idx})" style="position:absolute; top:-5px; right:-5px; background:var(--danger); color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-times"></i></button>
+        `;
+        preview.appendChild(div);
+    });
+}
+
+window.removeEditToolImage = function(index) {
+    currentEditImages.splice(index, 1);
+    renderEditToolImages();
+};
+
+window.handleEditToolImageUpload = function(event) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentEditImages.push(e.target.result);
+                renderEditToolImages();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+};
+
+window.saveToolImages = function() {
+    const toolId = document.getElementById('edit-image-tool-id').value;
+    const tools = AppDB.getTools();
+    const t = tools.find(x => x.id === toolId);
+    if (t) {
+        t.images = currentEditImages;
+        saveToolsArray(tools);
+        closeModal('tool-image-edit-modal');
+        viewToolDetails(toolId);
+        renderTools();
+        showCenterAlert('à¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'à¸šà¸±à¸™à¸—à¸¶à¸à¸£à¸¹à¸›à¸ à¸²à¸žà¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢à¹à¸¥à¹‰à¸§');
+    }
+};
+
+function logToolAction(name, action, toProj, user) {
+    const logs = AppDB.getToolLogs() || [];
+    logs.push({
+        id: 'tlog' + Date.now(),
+        timestamp: new Date().toISOString(),
+        tool_name: name,
+        action: action,
+        to_project: toProj,
+        borrower_name: user,
+        approver_name: currentUser?.name
+    });
+    saveToDB('ToolLogs', logs);
+}
+
+window.logicOpenToolBorrowModal = function(toolId = '') {
+    document.getElementById('borrow-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('borrow-tool-display-name').textContent = t.name;
+    }
+
+    const selectBorrower = document.getElementById('borrow-tool-borrower');
+    if (selectBorrower) {
+        selectBorrower.innerHTML = '<option value="" disabled selected>-- à¹€à¸¥à¸·à¸­à¸à¸œà¸¹à¹‰à¹€à¸šà¸´à¸à¹ƒà¸Šà¹‰à¸‡à¸²à¸™ --</option>';
+        const users = AppDB.getUsers();
+        users.forEach(u => {
+            selectBorrower.innerHTML += `<option value="${u.name}">${u.name}</option>`;
+        });
+    }
+
+    const selectProj = document.getElementById('borrow-tool-project');
+    if (selectProj) {
+        selectProj.innerHTML = '<option value="" disabled selected>-- à¹€à¸¥à¸·à¸­à¸à¹‚à¸„à¸£à¸‡à¸à¸²à¸£ --</option>';
+        const projs = AppDB.getProjects();
+        projs.forEach(p => {
+            if (p.name !== 'à¸„à¸¥à¸±à¸‡à¸ªà¸´à¸™à¸„à¹‰à¸²à¸à¸¥à¸²à¸‡') {
+                selectProj.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+            }
+        });
+    }
+
+    document.getElementById('borrow-tool-auth').value = currentUser?.name || 'Admin';
+
+    openModal('borrow-tool-modal');
+};
+
+window.logicOpenToolReturnModal = function(toolId = '') {
+    document.getElementById('return-tool-id').value = toolId;
+    const t = AppDB.getTools().find(x => x.id === toolId);
+    if (t) {
+        document.getElementById('return-tool-display-name').textContent = t.name;
+    }
+
+    const selectBorrower = document.getElementById('return-tool-borrower');
+    if (selectBorrower) {
+        selectBorrower.innerHTML = '<option value="" disabled selected>-- ??????????????? --</option>';
+        const users = AppDB.getUsers();
+        users.forEach(u => {
+            selectBorrower.innerHTML += '<option value="' + u.name + '">' + u.name + '</option>';
+        });
+        if (t && t.current_borrower) {
+            selectBorrower.value = t.current_borrower;
+        }
+    }
+
+    const selectLocation = document.getElementById('return-tool-location');
+    if (selectLocation) {
+        selectLocation.innerHTML = '<option value="" disabled selected>-- ???????????????? --</option>';
+        const whs = AppDB.getWarehouses();
+        whs.forEach(w => {
+            selectLocation.innerHTML += '<option value="' + w.name + '">' + w.name + '</option>';
+        });
+        // Default to base warehouse if exists
+        const baseWh = whs.find(w => w.name === '??????????????');
+        if (baseWh) selectLocation.value = baseWh.name;
+    }
+
+    document.getElementById('return-tool-auth').value = currentUser?.name || 'Admin';
+
+    clearSignature();
+    initSignatureCanvas();
+
+    openModal('return-tool-modal');
+};
+
+let isDrawingSignature = false;
+let sigCtx = null;
+let sigCanvas = null;
+
+function initSignatureCanvas() {
+    sigCanvas = document.getElementById('return-tool-signature');
+    if (!sigCanvas) return;
+    
+    sigCtx = sigCanvas.getContext('2d');
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+    sigCtx.strokeStyle = '#000';
+
+    sigCanvas.removeEventListener('mousedown', startDrawing);
+    sigCanvas.removeEventListener('mousemove', drawSignature);
+    sigCanvas.removeEventListener('mouseup', stopDrawing);
+    sigCanvas.removeEventListener('mouseout', stopDrawing);
+    
+    sigCanvas.removeEventListener('touchstart', startDrawingTouch, {passive: false});
+    sigCanvas.removeEventListener('touchmove', drawSignatureTouch, {passive: false});
+    sigCanvas.removeEventListener('touchend', stopDrawing);
+
+    sigCanvas.addEventListener('mousedown', startDrawing);
+    sigCanvas.addEventListener('mousemove', drawSignature);
+    sigCanvas.addEventListener('mouseup', stopDrawing);
+    sigCanvas.addEventListener('mouseout', stopDrawing);
+
+    sigCanvas.addEventListener('touchstart', startDrawingTouch, {passive: false});
+    sigCanvas.addEventListener('touchmove', drawSignatureTouch, {passive: false});
+    sigCanvas.addEventListener('touchend', stopDrawing);
+}
+
+function getCursorPosition(canvas, event) {
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    if (event.touches) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+    return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+}
+
+function startDrawing(e) {
+    isDrawingSignature = true;
+    const pos = getCursorPosition(sigCanvas, e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(pos.x, pos.y);
+}
+
+function startDrawingTouch(e) {
+    e.preventDefault();
+    startDrawing(e);
+}
+
+function drawSignature(e) {
+    if (!isDrawingSignature) return;
+    const pos = getCursorPosition(sigCanvas, e);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+}
+
+function drawSignatureTouch(e) {
+    e.preventDefault();
+    drawSignature(e);
+}
+
+function stopDrawing() {
+    isDrawingSignature = false;
+    if (sigCtx) sigCtx.closePath();
+}
+
+window.clearSignature = function() {
+    if (sigCanvas && sigCtx) {
+        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    }
+};
+
+
+// Export edit for tool buttons
+window.editTool = function(id) {
+    const t = AppDB.getTools().find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('tool-form-id').value = t.id;
+    document.getElementById('tool-name').value = t.name;
+    document.getElementById('tool-serial').value = t.serial_number;
+    document.getElementById('tool-category').value = t.category;
+    if (document.getElementById('tool-status')) document.getElementById('tool-status').value = t.status;
+    document.getElementById('tool-price').value = t.price || 0;
+    document.getElementById('tool-image-url').value = t.images?.[0] || '';
+    document.getElementById('tool-modal-title').textContent = 'à¹à¸à¹‰à¹„à¸‚à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸¡à¸·à¸­';
+    openModal('tool-form-modal');
+};
+
+function saveToolsArray(tools) {
+    let dbStr = localStorage.getItem('probuild_stock_db');
+    if (dbStr) {
+        let db = JSON.parse(dbStr);
+        db.Tools = tools;
+        localStorage.setItem('probuild_stock_db', JSON.stringify(db));
+    }
+}
+
+
+function saveToDB(key, data) {
+    let dbStr = localStorage.getItem('probuild_stock_db');
+    if (dbStr) {
+        let db = JSON.parse(dbStr);
+        db[key] = data;
+        localStorage.setItem('probuild_stock_db', JSON.stringify(db));
+    }
+}
+
+
+
+
+
+
+
+// =============================================================================
+// ===  EXTENSION PATCH v2 - clean single append, no duplicates            ===
+// =============================================================================
+
+// ── 1. startVoice: silent (no toasts), permission warned only once ──────────
+window.startVoice = function(inputId, btnId) {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+        if (!window._voiceNotSupportedWarned) {
+            window._voiceNotSupportedWarned = true;
+            showToast('เบราว์เซอร์ไม่รองรับระบบเสียง', 'error');
+        }
+        return;
+    }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var recognition = new SR();
+    recognition.lang = 'th-TH';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    var btn = document.getElementById(btnId);
+    var origBg = btn ? btn.style.background : '';
+    var origColor = btn ? btn.style.color : '';
+    if (btn) { btn.style.background = '#ef4444'; btn.style.color = '#fff'; }
+
+    recognition.onresult = function(event) {
+        var text = event.results[0][0].transcript;
+        var input = document.getElementById(inputId);
+        if (input) { input.value = text; input.dispatchEvent(new Event('input')); }
+        if (btn) { btn.style.background = origBg; btn.style.color = origColor; }
+        if (inputId === 'withdraw-mat-name') updateWithdrawStockInfo(
+            document.getElementById('withdraw-mat-location') ? document.getElementById('withdraw-mat-location').value : 'Stock A');
+    };
+    recognition.onerror = function(event) {
+        if (btn) { btn.style.background = origBg; btn.style.color = origColor; }
+        if (event.error === 'not-allowed' && !window._voicePermissionWarned) {
+            window._voicePermissionWarned = true;
+            showToast('กรุณาอนุญาตการใช้ไมโครโฟน (ครั้งเดียว)', 'error');
+        }
+    };
+    recognition.onend = function() {
+        if (btn) { btn.style.background = origBg; btn.style.color = origColor; }
+    };
+    recognition.start();
+};
+
+// ── 2. requestMicPermission: call once after login ──────────────────────────
+window.requestMicPermission = function() {
+    if (window._micPermissionRequested) return;
+    window._micPermissionRequested = true;
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                stream.getTracks().forEach(function(t){ t.stop(); });
+                window._voicePermissionGranted = true;
+                window._voicePermissionWarned = true;
+            }).catch(function(){});
+    }
+};
+
+// ── 3. openAddMaterialModal: open material-add-modal ───────────────────────
+window.openAddMaterialModal = function() {
+    var fm = document.getElementById('add-mat-form');
+    if (fm) fm.reset();
+    var stocksContainer = document.getElementById('add-mat-stocks-container');
+    if (stocksContainer) {
+        var whs = AppDB.getWarehouses ? AppDB.getWarehouses() : [{code:'Stock A',name:'Stock A'},{code:'Stock B',name:'Stock B'},{code:'Stock C',name:'Stock C'}];
+        stocksContainer.innerHTML = '';
+        whs.forEach(function(w) {
+            var fieldId = 'addmat-wh-' + w.id;
+            stocksContainer.innerHTML += '<div class="form-group"><label class="form-label">' + w.name + '</label><input type="number" id="' + fieldId + '" data-whcode="' + w.code + '" class="form-control" min="0" value="0"></div>';
+        });
+    }
+    openModal('material-add-modal');
+};
+
+// ── 4. handleAddMaterialForm: save new material ─────────────────────────────
+window.handleAddMaterialForm = function(e) {
+    e.preventDefault();
+    var name = (document.getElementById('add-mat-name') && document.getElementById('add-mat-name').value || '').trim();
+    if (!name) { showToast('กรุณาระบุชื่อวัสดุ', 'error'); return; }
+    var category = (document.getElementById('add-mat-category') && document.getElementById('add-mat-category').value) || '';
+    var unit = (document.getElementById('add-mat-unit') && document.getElementById('add-mat-unit').value || 'ชิ้น').trim();
+    var price = parseFloat(document.getElementById('add-mat-price') && document.getElementById('add-mat-price').value) || 0;
+    var minStock = parseInt(document.getElementById('add-mat-min') && document.getElementById('add-mat-min').value) || 0;
+
+    var codeMap = {'Stock A':'stock_a_qty','Stock B':'stock_b_qty','Stock C':'stock_c_qty','Stock D':'stock_d_qty','Stock E':'stock_e_qty','Stock F':'stock_f_qty'};
+    var stockData = {stock_a_qty:0, stock_b_qty:0, stock_c_qty:0};
+
+    var inputs = document.querySelectorAll('#add-mat-stocks-container input[data-whcode]');
+    inputs.forEach(function(inp) {
+        var code = inp.getAttribute('data-whcode');
+        var field = codeMap[code] || 'stock_a_qty';
+        stockData[field] = (stockData[field] || 0) + (parseInt(inp.value) || 0);
+    });
+
+    var newMat = {
+        id: 'm' + Date.now(), name: name, code: '', category: category, unit: unit,
+        min_stock: minStock, price_per_unit: price,
+        stock_a_qty: stockData.stock_a_qty, stock_b_qty: stockData.stock_b_qty, stock_c_qty: stockData.stock_c_qty,
+        images: [(AppDB.MOCK_IMAGES && AppDB.MOCK_IMAGES.material) ? AppDB.MOCK_IMAGES.material : '']
+    };
+    Object.keys(stockData).forEach(function(k) { if (!newMat.hasOwnProperty(k)) newMat[k] = stockData[k]; });
+
+    var mats = AppDB.getMaterials();
+    mats.push(newMat);
+    saveToDB('Materials', mats);
+    closeModal('material-add-modal');
+    renderMaterials();
+    showToast('เพิ่มวัสดุ "' + name + '" เรียบร้อย', 'success');
+    e.target.reset();
+};
+
+// ── 5. editMaterial: open edit modal with image preview ─────────────────────
+window.editMaterial = function(id) {
+    try {
+        var mats = AppDB.getMaterials();
+        var m = mats.find(function(x){ return x.id === id; });
+        if (!m) { showToast('ไม่พบวัสดุ ID: ' + id, 'error'); return; }
+
+        function setVal(elId, val) {
+            var el = document.getElementById(elId);
+            if (el) el.value = (val !== null && val !== undefined) ? val : '';
+        }
+        setVal('mat-form-id', m.id);
+        setVal('mat-name', m.name || '');
+        setVal('mat-code', m.code || '');
+        setVal('mat-unit', m.unit || '');
+        setVal('mat-min-stock', m.min_stock || 0);
+        setVal('mat-price', m.price_per_unit || 0);
+        setVal('mat-image-url', '');
+
+        var catEl = document.getElementById('mat-category');
+        if (catEl && m.category) {
+            var found = false;
+            for (var i = 0; i < catEl.options.length; i++) {
+                if (catEl.options[i].value === m.category) { catEl.selectedIndex = i; found = true; break; }
+            }
+            if (!found) {
+                var opt = document.createElement('option');
+                opt.value = m.category; opt.text = m.category;
+                catEl.appendChild(opt); catEl.value = m.category;
+            }
+        }
+
+        window._matEditImages = (m.images && Array.isArray(m.images)) ? m.images.filter(Boolean).slice() : [];
+        if (typeof renderMatEditImagePreview === 'function') renderMatEditImagePreview();
+
+        var titleEl = document.getElementById('material-modal-title');
+        if (titleEl) titleEl.textContent = 'แก้ไขวัสดุ: ' + m.name;
+        openModal('material-edit-modal');
+    } catch(err) {
+        console.error('editMaterial error:', err);
+        showToast('ข้อผิดพลาด: ' + err.message, 'error');
+    }
+};
+
+// ── 6. renderMatEditImagePreview ─────────────────────────────────────────────
+window._matEditImages = [];
+window.renderMatEditImagePreview = function() {
+    var preview = document.getElementById('mat-edit-image-preview');
+    if (!preview) return;
+    preview.innerHTML = '';
+    (window._matEditImages || []).forEach(function(src, idx) {
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative; display:inline-block; cursor:grab;';
+        wrap.draggable = true;
+        wrap.dataset.index = idx;
+        
+        wrap.ondragstart = function(e) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', idx);
+            setTimeout(() => this.style.opacity = '0.5', 0);
+        };
+        wrap.ondragend = function() {
+            this.style.opacity = '1';
+        };
+        wrap.ondragover = function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.style.border = '2px dashed var(--accent)';
+        };
+        wrap.ondragleave = function() {
+            this.style.border = 'none';
+        };
+        wrap.ondrop = function(e) {
+            e.preventDefault();
+            this.style.border = 'none';
+            var dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            var dropIdx = parseInt(this.dataset.index, 10);
+            if (!isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
+                var draggedItem = window._matEditImages[dragIdx];
+                window._matEditImages.splice(dragIdx, 1);
+                window._matEditImages.splice(dropIdx, 0, draggedItem);
+                window.renderMatEditImagePreview();
+            }
+        };
+
+        var img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'width:80px; height:80px; object-fit:cover; border-radius:8px; border:2px solid var(--border-color); pointer-events:none;';
+        
+        var del = document.createElement('button');
+        del.type = 'button'; del.innerHTML = '&times;';
+        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;z-index:10;';
+        del.onclick = (function(i){ return function(evt){ evt.stopPropagation(); window._matEditImages.splice(i,1); window.renderMatEditImagePreview(); }; })(idx);
+        
+        wrap.appendChild(img); wrap.appendChild(del);
+        preview.appendChild(wrap);
+    });
+};
+
+// ── 7. handleMatImageUpload ──────────────────────────────────────────────────
+window.handleMatImageUpload = function(input) {
+    Array.from(input.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(evt) {
+            var img2 = new Image();
+            img2.onload = function() {
+                var canvas = document.createElement('canvas');
+                var w = img2.width, h = img2.height, MAX = 800;
+                if (w > h && w > MAX) { h = h*MAX/w; w = MAX; } else if (h > MAX) { w = w*MAX/h; h = MAX; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img2, 0, 0, w, h);
+                window._matEditImages.push(canvas.toDataURL('image/jpeg', 0.7));
+                window.renderMatEditImagePreview();
+            };
+            img2.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+    input.value = '';
+};
+
+// ── 8. handleSaveMaterial: save edit with images ─────────────────────────────
+window.handleSaveMaterial = function(e) {
+    e.preventDefault();
+    try {
+        var id = (document.getElementById('mat-form-id') && document.getElementById('mat-form-id').value) || '';
+        var mats = AppDB.getMaterials();
+        var urlField = document.getElementById('mat-image-url');
+        var images = (window._matEditImages && window._matEditImages.length > 0)
+            ? window._matEditImages.slice()
+            : (urlField && urlField.value ? [urlField.value] : [(AppDB.MOCK_IMAGES && AppDB.MOCK_IMAGES.material) ? AppDB.MOCK_IMAGES.material : '']);
+
+        var newMat = {
+            id: id || 'm' + Date.now(),
+            name: (document.getElementById('mat-name') && document.getElementById('mat-name').value) || '',
+            code: (document.getElementById('mat-code') && document.getElementById('mat-code').value) || '',
+            category: (document.getElementById('mat-category') && document.getElementById('mat-category').value) || '',
+            unit: (document.getElementById('mat-unit') && document.getElementById('mat-unit').value) || '',
+            min_stock: parseInt(document.getElementById('mat-min-stock') && document.getElementById('mat-min-stock').value) || 0,
+            price_per_unit: parseFloat(document.getElementById('mat-price') && document.getElementById('mat-price').value) || 0,
+            stock_a_qty: 0, stock_b_qty: 0, stock_c_qty: 0,
+            images: images
+        };
+        if (!newMat.name) { showToast('กรุณาระบุชื่อวัสดุ', 'error'); return; }
+
+        if (id) {
+            var idx = mats.findIndex(function(x){ return x.id === id; });
+            if (idx !== -1) {
+                newMat.stock_a_qty = mats[idx].stock_a_qty || 0;
+                newMat.stock_b_qty = mats[idx].stock_b_qty || 0;
+                newMat.stock_c_qty = mats[idx].stock_c_qty || 0;
+                newMat.stock_d_qty = mats[idx].stock_d_qty || 0;
+                newMat.stock_e_qty = mats[idx].stock_e_qty || 0;
+                newMat.stock_f_qty = mats[idx].stock_f_qty || 0;
+                newMat.stock_g_qty = mats[idx].stock_g_qty || 0;
+                newMat.stock_h_qty = mats[idx].stock_h_qty || 0;
+                newMat.stock_i_qty = mats[idx].stock_i_qty || 0;
+                newMat.stock_j_qty = mats[idx].stock_j_qty || 0;
+            }
+        }
+
+        AppDB.addApproval({
+            type: 'material',
+            action: id ? 'edit' : 'add',
+            data: newMat,
+            requested_by: (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown')
+        });
+        
+        AppDB.notifyTelegram('🔔 <b>มีรายการขออนุมัติใหม่</b>\nประเภท: <b>' + (id ? 'แก้ไขวัสดุ' : 'เพิ่มวัสดุใหม่') + '</b>\nรายการ: ' + newMat.name + '\nผู้ขอ: ' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.name : 'Unknown'));
+
+        if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+        
+        closeModal('material-edit-modal');
+        
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                html: '<div style="font-size:24px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i> บันทึกข้อมูลวัสดุสำเร็จ</div>' +
+                      '<div style="font-size:18px;">' + newMat.name + '</div>' +
+                      '<div style="color:#ef4444; font-weight:bold; margin-top:20px; padding:10px; background:#fee2e2; border-radius:8px; display:inline-block;">สถานะรออนุมัติ</div>',
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#3b82f6',
+                width: '400px'
+            });
+        } else {
+            showToast('บันทึกข้อมูลและส่งรออนุมัติสำเร็จ', 'success');
+        }
+        
+        window._matEditImages = [];
+    } catch(err) {
+        console.error('handleSaveMaterial error:', err);
+        showToast('ข้อผิดพลาด: ' + err.message, 'error');
+    }
+};
+
+// ── 9. handleReceiveMaterialFixed ───────────────────────────────────────────
+window.handleReceiveMaterialFixed = function(e) {
+    e.preventDefault();
+    try {
+        var matName = (document.getElementById('receive-mat-name') && document.getElementById('receive-mat-name').value || '').trim();
+        var qty = parseInt(document.getElementById('receive-mat-qty') && document.getElementById('receive-mat-qty').value) || 0;
+        var location = (document.getElementById('receive-mat-location') && document.getElementById('receive-mat-location').value) || 'Stock A';
+        if (!matName || qty <= 0) { showToast('กรุณาระบุชื่อวัสดุและจำนวน', 'error'); return; }
+        var mats = AppDB.getMaterials();
+        var m = mats.find(function(x){ return x.name === matName; }) ||
+                mats.find(function(x){ return x.name && x.name.toLowerCase().indexOf(matName.toLowerCase()) >= 0; });
+        if (!m) { showToast('ไม่พบวัสดุ "' + matName + '"', 'error'); return; }
+        var codeMap = {'Stock A':'stock_a_qty','Stock B':'stock_b_qty','Stock C':'stock_c_qty','Stock D':'stock_d_qty'};
+        var field = codeMap[location] || 'stock_a_qty';
+        m[field] = (m[field] || 0) + qty;
+        saveToDB('Materials', mats);
+        if (typeof logMaterialAction === 'function') logMaterialAction(m.name, 'receive', qty, location, currentUser && currentUser.name);
+        closeModal('receive-material-modal');
+        renderMaterials();
+        showToast('รับเข้า ' + m.name + ' ' + qty + ' ' + (m.unit||'ชิ้น') + ' สำเร็จ', 'success');
+        e.target.reset();
+    } catch(err) { console.error(err); showToast('ข้อผิดพลาด: ' + err.message, 'error'); }
+};
+
+// ── 10. handleWithdrawMaterialFinal ─────────────────────────────────────────
+window.handleWithdrawMaterialFinal = function(e) {
+    e.preventDefault();
+    try {
+        var matName = (document.getElementById('withdraw-mat-name') && document.getElementById('withdraw-mat-name').value || '').trim();
+        var qty = parseInt(document.getElementById('withdraw-mat-qty') && document.getElementById('withdraw-mat-qty').value) || 0;
+        var locationSel = document.getElementById('withdraw-mat-location');
+        var location = locationSel ? locationSel.value : 'Stock A';
+        var borrower = (document.getElementById('withdraw-mat-borrower') && document.getElementById('withdraw-mat-borrower').value) || '';
+        if (!matName) { showToast('กรุณาระบุชื่อวัสดุ', 'error'); return; }
+        if (qty <= 0) { showToast('กรุณาระบุจำนวนที่เบิก', 'error'); return; }
+        if (!borrower) { showToast('กรุณาเลือกชื่อผู้เบิก', 'error'); return; }
+        var mats = AppDB.getMaterials();
+        var m = mats.find(function(x){ return x.name === matName; }) ||
+                mats.find(function(x){ return x.name && x.name.toLowerCase().indexOf(matName.toLowerCase()) >= 0; });
+        if (!m) { showToast('ไม่พบวัสดุ "' + matName + '"', 'error'); return; }
+        var whs = AppDB.getWarehouses ? AppDB.getWarehouses() : [];
+        var wh = whs.find(function(w){ return w.code === location || w.name === location; });
+        var whCode = wh ? wh.code : location;
+        var codeMap = {'Stock A':'stock_a_qty','Stock B':'stock_b_qty','Stock C':'stock_c_qty','Stock D':'stock_d_qty'};
+        var field = codeMap[whCode] || 'stock_a_qty';
+        var available = m[field] || 0;
+        if (available < qty) { showToast('สต็อกใน ' + location + ' ไม่เพียงพอ (มี ' + available + ' ' + (m.unit||'ชิ้น') + ')', 'error'); return; }
+        m[field] = available - qty;
+        saveToDB('Materials', mats);
+        if (typeof logMaterialAction === 'function') {
+            var proj = (document.getElementById('withdraw-mat-project') && document.getElementById('withdraw-mat-project').value) || location;
+            logMaterialAction(m.name, 'withdraw', qty, proj, borrower);
+        }
+        closeModal('withdraw-material-modal');
+        renderMaterials();
+        showToast('เบิก ' + m.name + ' ' + qty + ' ' + (m.unit||'ชิ้น') + ' สำเร็จ', 'success');
+        e.target.reset();
+        if (locationSel) { ['Stock A','Stock B','Stock C'].forEach(function(n,i){ if(locationSel.options[i]) locationSel.options[i].text = n; }); }
+        var inf = document.getElementById('withdraw-stock-info');
+        if (inf) inf.textContent = '';
+    } catch(err) { console.error(err); showToast('ข้อผิดพลาด: ' + err.message, 'error'); }
+};
+
+// ── 11. openReceiveMaterialModal: auto-fill + pre-fill name ─────────────────
+window.openReceiveMaterialModal = function(matId) {
+    var nameInput = document.getElementById('receive-mat-name');
+    if (nameInput) {
+        if (matId) {
+            var m = AppDB.getMaterials().find(function(x){ return x.id === matId; });
+            if (m) nameInput.value = m.name; else nameInput.value = '';
+        } else nameInput.value = '';
+    }
+    var authInput = document.getElementById('receive-mat-auth');
+    if (authInput && typeof currentUser !== 'undefined' && currentUser) authInput.value = currentUser.name || '';
+    openModal('receive-material-modal');
+};
+
+// ── 12. openWithdrawMaterialModal: populate dropdowns ───────────────────────
+window.openWithdrawMaterialModal = function(matId) {
+    window._withdrawCurrentMat = null;
+    var nameInput = document.getElementById('withdraw-mat-name');
+    if (nameInput) {
+        if (matId) {
+            var m = AppDB.getMaterials().find(function(x){ return x.id === matId; });
+            if (m) { nameInput.value = m.name; window._withdrawCurrentMat = m; }
+            else nameInput.value = '';
+        } else nameInput.value = '';
+    }
+    var borrowerSel = document.getElementById('withdraw-mat-borrower');
+    if (borrowerSel) {
+        borrowerSel.innerHTML = '<option value="" disabled selected>-- เลือกชื่อพนักงาน --</option>';
+        var users = AppDB.getUsers ? AppDB.getUsers() : [];
+        users.forEach(function(u) { borrowerSel.innerHTML += '<option value="' + u.name + '">' + u.name + '</option>'; });
+    }
+    var authInput = document.getElementById('withdraw-mat-auth');
+    if (authInput && typeof currentUser !== 'undefined' && currentUser) authInput.value = currentUser.name || '';
+    updateWithdrawStockInfo((document.getElementById('withdraw-mat-location') && document.getElementById('withdraw-mat-location').value) || 'Stock A');
+    openModal('withdraw-material-modal');
+};
+
+// ── 13. updateWithdrawStockInfo ──────────────────────────────────────────────
+window.updateWithdrawStockInfo = function(location) {
+    var infoDiv = document.getElementById('withdraw-stock-info');
+    var locationSel = document.getElementById('withdraw-mat-location');
+    if (!infoDiv) return;
+    var nameInput = document.getElementById('withdraw-mat-name');
+    var matName = nameInput && nameInput.value.trim();
+    var mat = window._withdrawCurrentMat;
+    if (!mat && matName) mat = AppDB.getMaterials().find(function(x){ return x.name && x.name.toLowerCase().indexOf(matName.toLowerCase()) >= 0; });
+    if (mat && locationSel) {
+        var whs = AppDB.getWarehouses ? AppDB.getWarehouses() : [{code:'Stock A',name:'Stock A'},{code:'Stock B',name:'Stock B'},{code:'Stock C',name:'Stock C'}];
+        var codeMap = {'Stock A':'stock_a_qty','Stock B':'stock_b_qty','Stock C':'stock_c_qty'};
+        whs.forEach(function(w, i) {
+            if (locationSel.options[i]) locationSel.options[i].text = w.name + ' (' + (mat[codeMap[w.code]||'stock_a_qty'] || 0) + ' ' + (mat.unit||'') + ')';
+        });
+        var field = codeMap[location] || 'stock_a_qty';
+        var qty = mat[field] || 0;
+        infoDiv.textContent = 'คงเหลือใน ' + location + ': ' + qty + ' ' + (mat.unit||'ชิ้น');
+        infoDiv.style.color = qty > 0 ? 'var(--accent)' : '#ef4444';
+    } else {
+        infoDiv.textContent = '';
+        if (locationSel) { ['Stock A','Stock B','Stock C'].forEach(function(n,i){ if(locationSel.options[i]) locationSel.options[i].text = n; }); }
+    }
+};
+
+// ── 14. handleSaveMaterial alias ────────────────────────────────────────────
+window.handleSaveMaterial = window.handleSaveMaterial; // already defined above
+
+
+
+// --- NEW APPROVALS VIEW LOGIC ---
+window.renderApprovals = function() {
+    const container = document.getElementById('view-approvals');
+    if (!container) return;
+    
+    const approvals = AppDB.getApprovals();
+    
+    let html = '<div class="card" style="margin-bottom: 24px;">';
+    html += '<div class="list-widget-header" style="margin-bottom:20px;">';
+    html += '<h3 class="list-widget-title" style="color: var(--accent);"><i class="fas fa-clipboard-check"></i> รายการรออนุมัติ (' + approvals.length + ')</h3>';
+    html += '</div>';
+    
+    if (approvals.length === 0) {
+        html += '<div style="text-align:center; padding:40px; color:#6b7280;">ไม่มีรายการรออนุมัติในขณะนี้</div>';
+    } else {
+        html += '<div class="table-wrapper"><table class="app-table"><thead><tr>';
+        html += '<th>วันที่/เวลา</th><th>ประเภท</th><th>รายการ</th><th>ผู้ขอ</th><th>สถานะ</th><th>จัดการ</th>';
+        html += '</tr></thead><tbody>';
+        
+        approvals.forEach(req => {
+            const dateStr = new Date(req.timestamp).toLocaleString('th-TH');
+            let typeLabel = '';
+            if (req.type === 'material') {
+                typeLabel = req.action === 'add' ? '<span class="badge" style="background:#3b82f6;color:white;">เพิ่มวัสดุ</span>' : '<span class="badge" style="background:#f59e0b;color:white;">แก้ไขวัสดุ</span>';
+            } else if (req.type === 'tool') {
+                typeLabel = req.action === 'add' ? '<span class="badge" style="background:#10b981;color:white;">เพิ่มเครื่องมือ</span>' : '<span class="badge" style="background:#ef4444;color:white;">ยุติการใช้งานเครื่องมือ</span>';
+            }
+            
+            const itemName = req.data ? req.data.name : '-';
+            
+            html += '<tr>';
+            html += '<td>' + dateStr + '</td>';
+            html += '<td>' + typeLabel + '</td>';
+            html += '<td><strong>' + itemName + '</strong></td>';
+            html += '<td>' + (req.requested_by || '-') + '</td>';
+            html += '<td><span class="badge" style="background:#ef4444;color:white;">รออนุมัติ</span></td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-success" onclick="approveItem(\'' + req.id + '\')" style="margin-right:5px;"><i class="fas fa-check"></i> อนุมัติ</button>';
+            html += '<button class="btn btn-sm btn-danger" onclick="rejectItem(\'' + req.id + '\')"><i class="fas fa-times"></i> ไม่อนุมัติ</button>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+};
+
+window.approveItem = function(id) {
+    if (confirm('คุณต้องการอนุมัติรายการนี้ใช่หรือไม่?')) {
+        try {
+            AppDB.approveRequest(id, currentUser.name);
+            showToast('อนุมัติรายการสำเร็จ', 'success');
+            renderApprovals();
+            if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+        } catch(e) {
+            showToast(e.message, 'error');
+        }
+    }
+};
+
+window.rejectItem = function(id) {
+    if (confirm('คุณต้องการไม่อนุมัติและลบคำขอนี้ทิ้งใช่หรือไม่?')) {
+        try {
+            AppDB.rejectRequest(id, currentUser.name);
+            showToast('ปฏิเสธรายการสำเร็จ', 'success');
+            renderApprovals();
+            if (typeof window.updateApprovalBadge === 'function') window.updateApprovalBadge();
+        } catch(e) {
+            showToast(e.message, 'error');
+        }
+    }
+};
+
+
+
+
+// SUCCESS POPUP (centered modal, replaces corner toast)
+window.showSuccessPopup = function(msg) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            html: '<div style="font-size:24px; font-weight:bold; color:#10B981; margin-bottom:10px;"><i class="fas fa-check-circle"></i></div><div style="font-size:18px; white-space:pre-line;">' + msg + '</div>',
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#3b82f6',
+            width: '400px'
+        });
+        return;
+    }
+    var old = document.getElementById('_sp_overlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = '_sp_overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:16px;padding:32px 40px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;font-family:inherit;';
+    var icon = document.createElement('div');
+    icon.innerHTML = '<i class="fas fa-check-circle" style="font-size:48px;color:#10b981;margin-bottom:16px;"></i>';
+    var txt = document.createElement('div');
+    txt.style.cssText = 'font-size:16px;color:#1e293b;font-weight:600;line-height:1.7;margin-bottom:24px;white-space:pre-line;';
+    txt.textContent = msg;
+    var btn = document.createElement('button');
+    btn.textContent = 'ตกลง';
+    btn.style.cssText = 'background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:12px 48px;font-size:16px;font-weight:700;cursor:pointer;';
+    btn.onclick = function(){ ov.remove(); };
+    ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+    card.appendChild(icon);
+    card.appendChild(txt);
+    card.appendChild(btn);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    setTimeout(function(){ if(ov.parentNode) ov.remove(); }, 10000);
+};
+
+var _oToast = window.showToast;
+window.showToast = function(msg, type) {
+    type = type || 'info';
+    if (type === 'success' || type === 'error') {
+        window.showSuccessPopup(msg);
+    } else {
+        if (typeof _oToast === 'function') try { _oToast(msg, type); } catch(e){}
+    }
+};
+</script>

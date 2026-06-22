@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ตัวจัดการฐานข้อมูลและการสื่อสารข้อมูล (db.js)
  * สำหรับแอปพลิเคชันบริหารสต็อกสินค้าและเครื่องมือช่าง
  * Probuild Samui Development
@@ -113,15 +113,16 @@ const INITIAL_DATABASE = {
     { id: "p5", name: "คลังสินค้ากลาง", description: "คลังจัดเก็บสินค้าและเครื่องมือหลักของบริษัท" }
   ],
   Warehouses: [
-    { id: "w1", code: "Stock A", name: "Stock A" },
-    { id: "w2", code: "Stock B", name: "Stock B" },
-    { id: "w3", code: "Stock C", name: "Stock C" }
+    { id: "w1", code: "Stock A", name: "Stock A", is_default: true },
+    { id: "w2", code: "Stock B", name: "Stock B", is_default: false },
+    { id: "w3", code: "Stock C", name: "Stock C", is_default: false }
   ],
   Settings: {
     googleSheetUrl: "",
     telegramBotToken: "",
     telegramChatId: ""
-  }
+  },
+  Approvals: []
 };
 
 const DB_KEY = "probuild_stock_db";
@@ -143,6 +144,7 @@ function getDB() {
     if (!parsed.MaterialLogs) parsed.MaterialLogs = INITIAL_DATABASE.MaterialLogs;
     if (!parsed.ToolLogs) parsed.ToolLogs = INITIAL_DATABASE.ToolLogs;
     if (!parsed.Projects) parsed.Projects = INITIAL_DATABASE.Projects;
+    if (!parsed.Approvals) parsed.Approvals = [];
     
     // แปลงรูปภาพวัสดุหากอยู่ในรูปสตริง JSON
     parsed.Materials.forEach(m => {
@@ -153,6 +155,11 @@ function getDB() {
       }
       if (m.stock_d_qty === undefined) m.stock_d_qty = 0;
       if (m.stock_e_qty === undefined) m.stock_e_qty = 0;
+      if (m.stock_f_qty === undefined) m.stock_f_qty = 0;
+      if (m.stock_g_qty === undefined) m.stock_g_qty = 0;
+      if (m.stock_h_qty === undefined) m.stock_h_qty = 0;
+      if (m.stock_i_qty === undefined) m.stock_i_qty = 0;
+      if (m.stock_j_qty === undefined) m.stock_j_qty = 0;
     });
 
     // ป้องกันกรณีรหัสผ่านของพนักงานเป็นค่าว่างจากการซิงก์ Google Sheets
@@ -184,8 +191,9 @@ function getDB() {
 }
 
 // ฟังก์ชันบันทึกข้อมูลกลับลง LocalStorage
-function saveDB(data) {
+function saveDB(data, noSync = false) {
   localStorage.setItem(DB_KEY, JSON.stringify(data));
+  if (!noSync && typeof window.triggerAutoSync === 'function') setTimeout(window.triggerAutoSync, 1000);
 }
 
 // คลาสจัดการคำสั่งฐานข้อมูล
@@ -202,13 +210,13 @@ const AppDB = {
   addWarehouse: (warehouse) => {
     let db = getDB();
     if (!db.Warehouses) db.Warehouses = [];
-    if (db.Warehouses.length >= 5) {
-      throw new Error("ระบบรองรับการเปิดใช้งานคลังย่อยสูงสุด 5 คลัง");
+    if (db.Warehouses.length >= 10) {
+      throw new Error("ระบบรองรับการเปิดใช้งานคลังย่อยสูงสุด 10 คลัง");
     }
     
-    // ค้นหารหัสสล็อตคลังที่ยังไม่เปิดใช้งาน (Stock A-E)
+    // ค้นหารหัสสล็อตคลังที่ยังไม่เปิดใช้งาน (Stock A-J)
     const usedCodes = db.Warehouses.map(w => w.code);
-    const allCodes = ["Stock A", "Stock B", "Stock C", "Stock D", "Stock E"];
+    const allCodes = ["Stock A", "Stock B", "Stock C", "Stock D", "Stock E", "Stock F", "Stock G", "Stock H", "Stock I", "Stock J"];
     const freeCode = allCodes.find(c => !usedCodes.includes(c));
     
     warehouse.id = "w-" + Date.now();
@@ -228,6 +236,26 @@ const AppDB = {
   deleteWarehouse: (id) => {
     let db = getDB();
     db.Warehouses = (db.Warehouses || []).filter(w => w.id !== id);
+    saveDB(db);
+  },
+
+  // ดึง Store กลาง (is_default = true)
+  getDefaultWarehouse: () => {
+    const warehouses = getDB().Warehouses || [];
+    return warehouses.find(w => w.is_default) || warehouses[0] || { code: 'Stock A', name: 'Stock A' };
+  },
+
+  // ตั้ง Store กลางใหม่ (ยกเลิก default ทั้งหมด แล้วตั้งอันใหม่)
+  setDefaultWarehouse: (id) => {
+    let db = getDB();
+    db.Warehouses = (db.Warehouses || []).map(w => ({ ...w, is_default: (w.id === id) }));
+    saveDB(db);
+  },
+
+  // อัพเดทรูปภาพเครื่องมือ (บันทึก Base64)
+  updateToolImage: (toolId, base64ImageArray) => {
+    let db = getDB();
+    db.Tools = db.Tools.map(t => t.id === toolId ? { ...t, images: base64ImageArray } : t);
     saveDB(db);
   },
 
@@ -302,12 +330,7 @@ const AppDB = {
 
     let qty = Number(log.quantity);
     let loc = log.stock_location; // คลังจัดเก็บ (Stock A, B, C, D, E)
-    let qtyField = "stock_a_qty";
-    if (loc === "Stock A") qtyField = "stock_a_qty";
-    else if (loc === "Stock B") qtyField = "stock_b_qty";
-    else if (loc === "Stock C") qtyField = "stock_c_qty";
-    else if (loc === "Stock D") qtyField = "stock_d_qty";
-    else if (loc === "Stock E") qtyField = "stock_e_qty";
+    let qtyField = loc.toLowerCase().replace(" ", "_") + "_qty";
 
     if (log.type === "withdraw") {
       if (mat[qtyField] < qty) {
@@ -347,6 +370,110 @@ const AppDB = {
     db.Tools = db.Tools.map(t => t.id === updatedTool.id ? { ...t, ...updatedTool } : t);
     saveDB(db);
     return updatedTool;
+  },
+
+  approveToolAdd: (toolId, managerName) => {
+    let db = getDB();
+    let tool = db.Tools.find(t => t.id === toolId);
+    if (!tool) throw new Error("ไม่พบเครื่องมือช่าง");
+    tool.status = "usable";
+    tool.current_project = "คลังสินค้ากลาง";
+    tool.last_updated = new Date().toISOString();
+    
+    db.ToolLogs.push({
+      id: "tl-" + Date.now(),
+      tool_id: tool.id,
+      tool_name: tool.name,
+      action: "approve_add",
+      from_project: "-",
+      to_project: "คลังสินค้ากลาง",
+      borrower: managerName,
+      authorizer: managerName,
+      timestamp: new Date().toISOString(),
+      notes: "อนุมัติการเพิ่มเครื่องมือช่างเข้าคลัง"
+    });
+    
+    db.Tools = db.Tools.map(t => t.id === toolId ? tool : t);
+    saveDB(db);
+    return tool;
+  },
+
+  rejectToolAdd: (toolId, managerName) => {
+    let db = getDB();
+    let tool = db.Tools.find(t => t.id === toolId);
+    if (!tool) throw new Error("ไม่พบเครื่องมือช่าง");
+    tool.status = "deleted";
+    tool.last_updated = new Date().toISOString();
+    
+    db.ToolLogs.push({
+      id: "tl-" + Date.now(),
+      tool_id: tool.id,
+      tool_name: tool.name,
+      action: "reject_add",
+      from_project: "-",
+      to_project: "-",
+      borrower: managerName,
+      authorizer: managerName,
+      timestamp: new Date().toISOString(),
+      notes: "ปฏิเสธคำขอเพิ่มเครื่องมือช่าง"
+    });
+    
+    db.Tools = db.Tools.map(t => t.id === toolId ? tool : t);
+    saveDB(db);
+    return tool;
+  },
+
+  approveToolRetire: (toolId, managerName, notes) => {
+    let db = getDB();
+    let tool = db.Tools.find(t => t.id === toolId);
+    if (!tool) throw new Error("ไม่พบเครื่องมือช่าง");
+    
+    const prevProject = tool.current_project;
+    tool.status = "retired";
+    tool.current_project = "ยุติการใช้งาน (" + (notes || "ชำรุด/พัง") + ")";
+    tool.last_updated = new Date().toISOString();
+    
+    db.ToolLogs.push({
+      id: "tl-" + Date.now(),
+      tool_id: tool.id,
+      tool_name: tool.name,
+      action: "retire",
+      from_project: prevProject,
+      to_project: tool.current_project,
+      borrower: managerName,
+      authorizer: managerName,
+      timestamp: new Date().toISOString(),
+      notes: notes || "อนุมัติการยุติการใช้งาน"
+    });
+    
+    db.Tools = db.Tools.map(t => t.id === toolId ? tool : t);
+    saveDB(db);
+    return tool;
+  },
+
+  rejectToolRetire: (toolId, managerName) => {
+    let db = getDB();
+    let tool = db.Tools.find(t => t.id === toolId);
+    if (!tool) throw new Error("ไม่พบเครื่องมือช่าง");
+    tool.status = "usable";
+    tool.last_updated = new Date().toISOString();
+    
+    db.ToolLogs.push({
+      id: "tl-" + Date.now(),
+      tool_id: tool.id,
+      tool_name: tool.name,
+      action: "reject_retire",
+      from_project: tool.current_project,
+      to_project: tool.current_project,
+      borrower: managerName,
+      authorizer: managerName,
+      timestamp: new Date().toISOString(),
+      notes: "ปฏิเสธคำขอยุติการใช้งาน คืนสถานะพร้อมใช้"
+    });
+    
+    db.Tools = db.Tools.map(t => t.id === toolId ? tool : t);
+    saveDB(db);
+    return tool;
   },
 
   // ทำรายการเครื่องมือ (ยืม, คืน, โยกย้าย, ส่งซ่อม, เกษียณ)
@@ -395,6 +522,12 @@ const AppDB = {
       tool.status = "retired";
       tool.repair_status = "none";
       tool.current_project = "ยุติการใช้งาน (" + log.notes + ")";
+    } else if (log.action === "reactivate") {
+      tool.status = "usable";
+      tool.repair_status = "none";
+      const defaultWh = (db.Warehouses || []).find(w => w.is_default);
+      tool.current_project = "คลังสินค้ากลาง";
+      tool.storage_location = defaultWh ? defaultWh.code : "Stock A";
     }
 
     db.ToolLogs.push(log);
@@ -403,6 +536,98 @@ const AppDB = {
   },
 
   getToolLogs: () => getDB().ToolLogs,
+
+  // --- ระบบรออนุมัติ (Approvals) ---
+  getApprovals: () => getDB().Approvals || [],
+
+  addApproval: (approvalData) => {
+    let db = getDB();
+    if (!db.Approvals) db.Approvals = [];
+    approvalData.id = "ap-" + Date.now();
+    approvalData.timestamp = new Date().toISOString();
+    approvalData.status = "pending";
+    if (!db.Approvals) db.Approvals = [];
+    db.Approvals.push(approvalData);
+    saveDB(db);
+    return approvalData;
+  },
+
+  approveRequest: (approvalId, managerName) => {
+    let db = getDB();
+    if (!db.Approvals) db.Approvals = [];
+    let reqIndex = db.Approvals.findIndex(a => a.id === approvalId);
+    if (reqIndex === -1) throw new Error("ไม่พบคำขออนุมัตินี้");
+    
+    let req = db.Approvals[reqIndex];
+    let data = req.data;
+    
+    if (req.type === 'material') {
+      if (req.action === 'add') {
+        data.last_updated = new Date().toISOString();
+        db.Materials.push(data);
+      } else if (req.action === 'edit') {
+        data.last_updated = new Date().toISOString();
+        db.Materials = db.Materials.map(m => m.id === data.id ? { ...m, ...data } : m);
+      }
+    } else if (req.type === 'tool') {
+      if (req.action === 'add') {
+        data.last_updated = new Date().toISOString();
+        data.status = "usable";
+        data.current_project = "คลังสินค้ากลาง";
+        db.Tools.push(data);
+        db.ToolLogs.push({
+          id: "tl-" + Date.now(),
+          tool_id: data.id,
+          tool_name: data.name,
+          action: "approve_add",
+          from_project: "-",
+          to_project: "คลังสินค้ากลาง",
+          borrower: managerName,
+          authorizer: managerName,
+          timestamp: new Date().toISOString(),
+          notes: "อนุมัติการเพิ่มเครื่องมือช่างเข้าคลัง"
+        });
+      } else if (req.action === 'retire') {
+        let tool = db.Tools.find(t => t.id === data.id);
+        if (tool) {
+          const prevProject = tool.current_project;
+          tool.status = "retired";
+          tool.current_project = "ยุติการใช้งาน (" + (data.notes || "ชำรุด/พัง") + ")";
+          tool.last_updated = new Date().toISOString();
+          db.ToolLogs.push({
+            id: "tl-" + Date.now(),
+            tool_id: tool.id,
+            tool_name: tool.name,
+            action: "retire",
+            from_project: prevProject,
+            to_project: tool.current_project,
+            borrower: managerName,
+            authorizer: managerName,
+            timestamp: new Date().toISOString(),
+            notes: data.notes || "อนุมัติการยุติการใช้งาน"
+          });
+          db.Tools = db.Tools.map(t => t.id === tool.id ? tool : t);
+        }
+      }
+    }
+    
+    // เอาออกจากคิวรออนุมัติ
+    db.Approvals.splice(reqIndex, 1);
+    saveDB(db);
+    return true;
+  },
+
+  rejectRequest: (approvalId, managerName) => {
+    let db = getDB();
+    if (!db.Approvals) db.Approvals = [];
+    let reqIndex = db.Approvals.findIndex(a => a.id === approvalId);
+    if (reqIndex === -1) throw new Error("ไม่พบคำขออนุมัตินี้");
+    
+    // เอาออกจากคิวรออนุมัติ
+    db.Approvals.splice(reqIndex, 1);
+    saveDB(db);
+    return true;
+  },
 
   // --- การตั้งค่า & ระบบเชื่อมต่อ ---
   getSettings: () => getDB().Settings,
@@ -507,7 +732,7 @@ const AppDB = {
           }
         });
         
-        saveDB(db);
+        saveDB(db, true);
         if (onProgress) onProgress("ซิงก์ข้อมูลเสร็จสมบูรณ์!");
         return true;
       } else {
@@ -521,3 +746,10 @@ const AppDB = {
 };
 
 window.AppDB = AppDB;
+
+
+
+
+
+
+
